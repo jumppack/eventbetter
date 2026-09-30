@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["online.jumppack.eventbetter.googleauth.GoogleAuthModule"]
+  }
+}

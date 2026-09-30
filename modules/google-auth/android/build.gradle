@@ -1,0 +1,26 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'online.jumppack.eventbetter'
+version = '1.0.0'
+
+android {
+  namespace "online.jumppack.eventbetter.googleauth"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // Credential Manager for sign-in, AuthorizationClient for OAuth scopes.
+  // Replaces the deprecated legacy Google Sign-In for Android SDK.
+  // googleid 1.2.1+ is compiled with Kotlin 2.4, newer than this SDK can read.
+  implementation "androidx.credentials:credentials:1.6.0"
+  implementation "androidx.credentials:credentials-play-services-auth:1.6.0"
+  implementation "com.google.android.libraries.identity.googleid:googleid:1.2.0"
+  implementation "com.google.android.gms:play-services-auth:22.0.0"
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0"
+}

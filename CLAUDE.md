@@ -17,7 +17,7 @@ Example: "Tuff Gym membership", starting 2026-09-30, monthly, 12 events, produce
 
 Because it's a real recurring series, deleting any occurrence in Google Calendar offers "All events".
 
-A working prototype exists as a Google Apps Script web app. Its remaining source is in `reference/apps-script/` (CalendarRepository.gs, Subscription.gs, Index.html, Styles.html). Config, Template, Schedule, Controller and Client were deleted once ported to `src/lib/`. Port its logic; don't reinvent it. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
+A working prototype exists as a Google Apps Script web app. Its remaining source is in `reference/apps-script/` (Index.html, Styles.html). The other files were deleted once ported: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2). Port its logic; don't reinvent it. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
 
 ## Fixed decisions
 
@@ -27,7 +27,7 @@ A working prototype exists as a Google Apps Script web app. Its remaining source
 | Android package ID | `online.jumppack.eventbetter` (permanent, never change) |
 | Platform | Android only for v1. Don't add iOS config, but avoid Android-only code where a cross-platform option costs nothing |
 | Stack | Expo (latest stable SDK), React Native, JavaScript with JSX. Use Expo Router for navigation |
-| Builds | Expo development build (not Expo Go, since native Google sign-in requires it). EAS Build and EAS Submit |
+| Builds | Expo development build (not Expo Go, since native Google sign-in requires it). EAS Build (cloud) and EAS Submit. Dev builds are installed on a physical Android phone; no local Android SDK |
 | Backend | None. Google Calendar is the database. No server, no analytics service, no own database |
 | Auth | Google account sign-in, then an incremental request for Calendar access |
 | Calendar target | The app writes only into its own secondary calendar named "EventBetter", which it creates on first use |
@@ -67,7 +67,7 @@ Unknown placeholders are left as literal text. Default template: `{name}: {ord} 
 - `FREQ` = DAILY, WEEKLY, MONTHLY or YEARLY, `INTERVAL` = repeat-every, and always `COUNT` = total occurrences (including the start event, if any). Never use `UNTIL`, because the end-date/count logic is resolved into `COUNT` beforehand.
 - Monthly with start day 29–31: add `BYMONTHDAY=28,…,<day>;BYSETPOS=-1` so short months clamp instead of being skipped.
 - Yearly starting Feb 29: add `BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1`.
-- Write a test proving the occurrence dates Google generates (via the instances endpoint) match `occurrences()` for a series starting on the 31st. If Google doesn't honor `BYSETPOS` as expected, stop and tell me.
+- Write a test proving the occurrence dates Google generates (via the instances endpoint) match `occurrences()` for a series starting on the 31st. If Google doesn't honor `BYSETPOS` as expected, stop and tell me. Verified 2026-09-30 on a real account: monthly from Jan 31 and yearly from Feb 29 both match. `calendarApi.live.test.js` (`npm run test:live`) is the repeatable version, and `create()` also refuses any series whose dates differ from the plan.
 
 ### Creating a subscription
 
@@ -127,9 +127,9 @@ Show clear progress while a series is being created, because patching many occur
 
 ## Auth details
 
-- Use `@react-native-google-signin/google-signin` with its Expo config plugin (or whatever Google currently recommends for Android sign-in plus authorization, after checking current docs).
+- Decided (milestone 2): a local Expo module, `modules/google-auth/` (Kotlin), wraps Google's current Android APIs. Credential Manager (`androidx.credentials` + `googleid`) handles sign-in, and `AuthorizationClient` (`play-services-auth`) handles scopes, token refresh (`clearToken`) and `revokeAccess`. `@react-native-google-signin` was rejected: its free edition is built on the deprecated legacy Google Sign-In SDK, and the maintained edition is paid. `src/api/auth.js` is the JS wrapper.
 - Request only basic profile at sign-in, then the Calendar scope separately.
-- Scope: prefer the narrowest scope that lets the app create and manage its own secondary calendar and that calendar's events (Google has a scope limited to app-created calendars). Check its current name, its sensitivity classification, and whether the app can find its own calendar again with it. If it can't meet the requirements, tell me the trade-offs before falling back to a broader scope.
+- Scopes (decided): `calendar.app.created` (create the app's own calendar and manage its events) plus `calendar.calendarlist.readonly`. `calendarList.list` doesn't accept `app.created`, so the list scope is what lets the app find its calendar again after a reinstall. Users can untick scopes, so `authorizeCalendar` checks what was granted: without `app.created` it fails, and without the list scope recovery is simply skipped. Our calendar is identified by summary + description + `accessRole: owner`. Scope sensitivity: confirm in the Cloud console (list scope reported non-sensitive; assume `app.created` is sensitive).
 - Get access tokens from the SDK on each API call session and let the SDK handle refresh. Never store tokens yourself.
 - Store the EventBetter calendar ID in AsyncStorage. If it's missing or the calendar was deleted, recover or recreate it.
 
@@ -203,8 +203,8 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 
 ## Implementation notes (decided during build)
 
-- The prototype's service file is `reference/apps-script/Subscription.gs`. The deleted Config.gs defaulted `maxCount` to 24, superseded by this spec's 12.
-- Delete each remaining reference file once it's fully ported: CalendarRepository.gs and Subscription.gs after milestone 2, Index.html after milestone 3, Styles.html after milestone 6.
+- The deleted Config.gs defaulted `maxCount` to 24, superseded by this spec's 12.
+- Delete each remaining reference file once it's fully ported: Index.html after milestone 3, Styles.html after milestone 6.
 - `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by both create and the live preview), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field for future migrations.
 - Extended property values are capped at 1024 characters, and longer values are silently truncated by the API. `planSeries` measures UTF-8 bytes (never fewer than characters) and throws `PropertyTooLargeError`.
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.

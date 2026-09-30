@@ -1,6 +1,6 @@
-import { MAX_PROPERTY_VALUE_LENGTH, UNITS } from "../config/defaults";
+import { MAX_PROPERTY_VALUE_LENGTH, REMINDER_MINUTES, UNITS } from "../config/defaults";
 import { rrule } from "./rrule";
-import { occurrences, parseDate } from "./schedule";
+import { addDays, occurrences, parseDate, toDateString } from "./schedule";
 import { fill, vars } from "./template";
 
 const CONFIG_VERSION = 1;
@@ -61,6 +61,24 @@ export function planSeries(sub) {
       ebName: checkedValue("ebName", sub.name),
       ebConfig: checkedValue("ebConfig", encodeConfig(sub)),
     },
+  };
+}
+
+// The Calendar API resource for the recurring master. Occurrences after the
+// first are renamed afterwards, one patch each.
+export function toSeriesEvent(plan) {
+  const [first] = plan.items;
+  return {
+    summary: first.title,
+    description: first.description,
+    start: { date: toDateString(plan.firstDate) },
+    end: { date: toDateString(addDays(plan.firstDate, 1)) },
+    recurrence: [plan.rrule],
+    reminders: {
+      useDefault: false,
+      overrides: [{ method: "popup", minutes: REMINDER_MINUTES }],
+    },
+    extendedProperties: { private: plan.properties },
   };
 }
 

@@ -19,6 +19,13 @@
     "plugins": [
       "expo-router",
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a75cf235-eead-400e-9de3-4a5cf367386f"
+      }
+    },
+    "owner": "jumppack"
   }
 }

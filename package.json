@@ -24,9 +24,7 @@
   },
   "devDependencies": {
     "jest": "~29.7.0",
-    "jest-expo": "~57.0.5"
-  },
-  "jest": {
-    "preset": "jest-expo"
+    "jest-expo": "~57.0.5",
+    "rrule": "^2.8.1"
   }
 }

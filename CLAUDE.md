@@ -208,6 +208,8 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by both create and the live preview), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field for future migrations.
 - Extended property values are capped at 1024 characters, and longer values are silently truncated by the API. `planSeries` measures UTF-8 bytes (never fewer than characters) and throws `PropertyTooLargeError`.
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.
+- `rrule` (npm, dev dependency only) powers `rrule.expansion.test.js`, which expands every generated RRULE for ~16,000 series (every start day in 2027 and 2028, all frequencies, several intervals, with and without a start event) and checks the dates match `buildOccurrences()`. It's an offline safety net; the live Google instances test remains authoritative.
+- India is a primary market. `npm test` runs every suite in four time zones (`jest.config.js` projects): Asia/Kolkata (IST, +05:30, where local midnight is the previous UTC day), UTC, America/Los_Angeles and Pacific/Auckland. `jest/timezone-environment.js` sets `TZ` on the real `process.env`, because test files only see a sandboxed copy. `timezone.test.js` asserts each zone is really applied. Never use `toISOString()` or `new Date("YYYY-MM-DD")` for calendar dates.
 - `validate()` returns `{ sub, errors, valid }` with per-field errors for the form. `normalize()` throws a `ValidationError` carrying the same errors.
 
 ## Working style
@@ -215,5 +217,5 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - I prefer concise, direct explanations. Assume I'm a developer, but explain Android and Play Store specifics I may not know.
 - Write clean, human-style code. Keep comments for the non-obvious "why", not narration.
 - Don't add dependencies beyond those named here without telling me why first.
-- Git: ask before every commit and push. Commit messages name the milestone ("Milestone N: …") and end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (the email makes GitHub show the co-author avatar). This repo's author email is the GitHub noreply address, set in local config.
+- Git: ask before every commit and push. Commit messages name the milestone ("Milestone N: …"; follow-up work on a finished milestone is "Milestone N.1", "N.2", …) and end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` (the email makes GitHub show the co-author avatar). This repo's author email is the GitHub noreply address, set in local config.
 - Never commit secrets or keystores. Keep real ad unit IDs and OAuth client IDs in config that's easy to swap.

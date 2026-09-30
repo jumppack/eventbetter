@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <?!= include("Styles") ?>
+</head>
+<body>
+  <div class="blobs" aria-hidden="true">
+    <span></span><span></span><span></span>
+  </div>
+
+  <main class="glass">
+    <h2>Add subscription</h2>
+    <p class="subtitle">Creates numbered events so you can see how long you've been subscribed.</p>
+
+    <form id="f">
+      <label>Title
+        <input name="name" required placeholder="Give a title">
+      </label>
+
+      <label>Start date
+        <input name="start" id="start" type="date" required>
+      </label>
+
+      <label>Frequency
+        <select name="frequency">
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="yearly">Yearly</option>
+          <option value="daily">Daily</option>
+        </select>
+      </label>
+
+      <label>Repeat every
+        <input name="interval" type="number" min="1" value="1">
+      </label>
+      <small class="help">
+        How many Frequency units between each event. 1 = every month, 3 = every 3 months
+        (quarterly), 6 = every 6 months. With Weekly, 2 = every 2 weeks.
+      </small>
+
+      <label>End date (optional)
+        <input name="end" id="end" type="date">
+      </label>
+
+      <label>Number of events to create
+        <input name="maxCount" type="number" min="1" value="12">
+      </label>
+      <small class="help">
+        How many events to add to your calendar. If you set an End date, it stops at
+        whichever comes first.
+      </small>
+
+      <label>Title template
+        <input name="title" value="{name}: {ord} {unit} over">
+      </label>
+      <div class="help">
+        The name each event gets. Words in { } are replaced automatically for every event.
+        <ul>
+          <li><code>{name}</code> the Title above</li>
+          <li><code>{count}</code> event number: 1, 2, 3</li>
+          <li><code>{ord}</code> event number as a position: 1st, 2nd, 3rd</li>
+          <li><code>{elapsed}</code> total units passed: count × Repeat every</li>
+          <li><code>{unit}</code> month, week, year or day</li>
+          <li><code>{units}</code> unit pluralised to match {elapsed}: 1 month, 2 months</li>
+        </ul>
+        <details>
+          <summary>Examples</summary>
+          <ul>
+            <li><code>{name}: {ord} {unit} over</code> → Tuff Gym membership: 3rd month over</li>
+            <li><code>{name}: {elapsed} {units} done</code> → Tuff Gym membership: 3 months done</li>
+            <li><code>{name}: {ord} renewal, {elapsed} {units} in</code> (repeat every 3)
+              → Tuff Gym membership: 2nd renewal, 6 months in</li>
+          </ul>
+        </details>
+      </div>
+
+      <label>Start event title (optional)
+        <input name="startTitle" placeholder="{name} started">
+      </label>
+      <small class="help">
+        Adds one extra event on the start date itself, e.g. {name} started →
+        Tuff Gym membership started. Leave blank to skip. The grey text is only a hint, not a value.
+      </small>
+
+      <label>Calendar (optional)
+        <input name="calendar" value="Subscriptions">
+      </label>
+      <small class="help">
+        Which Google Calendar the events go into. A name like "Subscriptions" creates a separate
+        calendar (if it doesn't exist) that you can hide or delete in one click. Leave blank to use
+        your main calendar.
+      </small>
+
+      <button type="submit" id="btn">Create events</button>
+    </form>
+
+    <div id="status" role="status"></div>
+  </main>
+
+  <?!= include("Client") ?>
+</body>
+</html>

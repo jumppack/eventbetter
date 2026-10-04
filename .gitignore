@@ -54,3 +54,6 @@ credentials/
 *service-account*.json
 keystore.properties
 *.keystore
+
+# local tool caches
+.enola/

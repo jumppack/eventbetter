@@ -1,50 +1,37 @@
-import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { Button, ErrorText, Row, Screen } from "../components/Screen";
+import { GlassCard, Screen, SecondaryButton } from "../components/Glass";
 import { useSession } from "../components/SessionProvider";
-import { FREQUENCIES } from "../config/defaults";
-import { toDateString } from "../lib/schedule";
-import { buildOccurrences } from "../lib/series";
-import { validate } from "../lib/validate";
+import { emptyForm, SubscriptionForm } from "../components/SubscriptionForm";
+import { useTheme } from "../components/theme";
 
-// Minimal create form for milestone 2. The full form, list and settings screens
-// come in milestone 3.
+// Add form for now; milestone 3 turns this into the subscriptions list and
+// moves the form to its own add/edit screen.
 const PROGRESS_TEXT = {
   preparing: () => "Preparing…",
   creating: () => "Creating the series…",
   renaming: ({ done, total }) => `Naming events: ${done} of ${total}`,
-  done: ({ total }) => `Done: ${total} events created`,
+  done: ({ total }) => `Done: ${total} events added to your EventBetter calendar.`,
 };
 
 export default function Home() {
+  const t = useTheme();
   const { account, service, signOut } = useSession();
-  const [form, setForm] = useState({
-    name: "",
-    start: toDateString(new Date()),
-    frequency: "monthly",
-    interval: "1",
-    maxCount: "12",
-  });
-  const [progress, setProgress] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [formKey, setFormKey] = useState(0);
 
-  const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
-
-  const preview = useMemo(() => {
-    const { sub, valid } = validate(form);
-    return valid ? buildOccurrences(sub).slice(0, 3) : [];
-  }, [form]);
-
-  async function onCreate() {
+  async function onSubmit(form) {
     setBusy(true);
-    setError(null);
-    setProgress(null);
+    setStatus(null);
     try {
-      await service.create(form, { onProgress: setProgress });
+      await service.create(form, {
+        onProgress: (p) => setStatus({ text: PROGRESS_TEXT[p.phase](p), tone: "normal" }),
+      });
+      setFormKey((k) => k + 1); // fresh form for the next subscription
     } catch (e) {
-      setError(e);
+      setStatus({ text: e.message, tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -52,72 +39,38 @@ export default function Home() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Add subscription</Text>
-
-        <Field label="Title" value={form.name} onChangeText={set("name")} placeholder="Give a title" />
-        <Field
-          label="Start date (YYYY-MM-DD)"
-          value={form.start}
-          onChangeText={set("start")}
-          autoCapitalize="none"
-        />
-        <Text style={styles.label}>Frequency</Text>
-        <Row>
-          {FREQUENCIES.map((f) => (
-            <Button
-              key={f}
-              title={f}
-              variant={form.frequency === f ? "primary" : "secondary"}
-              onPress={() => set("frequency")(f)}
+      <KeyboardAvoidingView style={styles.flex} behavior="height">
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <GlassCard>
+            <Text style={[styles.title, { color: t.text }]}>Add subscription</Text>
+            <Text style={[styles.subtitle, { color: t.muted }]}>
+              Creates numbered events so you can see how long you've been subscribed.
+            </Text>
+            <SubscriptionForm
+              key={formKey}
+              initial={emptyForm()}
+              submitLabel="Create events"
+              onSubmit={onSubmit}
+              busy={busy}
+              status={status}
             />
-          ))}
-        </Row>
-        <Field label="Repeat every" value={form.interval} onChangeText={set("interval")} keyboardType="number-pad" />
-        <Field label="Number of events" value={form.maxCount} onChangeText={set("maxCount")} keyboardType="number-pad" />
+          </GlassCard>
 
-        {preview.map((o) => (
-          <Text key={o.n} style={styles.preview}>
-            {toDateString(o.date)}: {o.title}
-          </Text>
-        ))}
-
-        <Button title="Create events" onPress={onCreate} busy={busy} disabled={!service} />
-        {progress && <Text>{PROGRESS_TEXT[progress.phase](progress)}</Text>}
-        <ErrorText error={error} />
-
-        <View style={styles.footer}>
-          <Text style={styles.muted}>Signed in as {account?.email}</Text>
-          <Button title="Sign out" variant="secondary" onPress={signOut} disabled={busy} />
-        </View>
-      </ScrollView>
+          <View style={styles.footer}>
+            <Text style={[styles.muted, { color: t.muted }]}>Signed in as {account?.email}</Text>
+            <SecondaryButton title="Sign out" onPress={signOut} disabled={busy} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-function Field({ label, ...props }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput style={styles.input} {...props} />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  content: { gap: 12, paddingBottom: 48 },
-  title: { fontSize: 28, fontWeight: "700" },
-  field: { gap: 4 },
-  label: { fontSize: 14, fontWeight: "600" },
-  input: {
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  preview: { opacity: 0.7 },
-  footer: { marginTop: 24, gap: 8 },
-  muted: { opacity: 0.6 },
+  flex: { flex: 1 },
+  content: { padding: 12, paddingTop: 20, paddingBottom: 48 },
+  title: { fontSize: 26, fontWeight: "700", letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, marginTop: 6 },
+  footer: { marginTop: 20, gap: 10, paddingHorizontal: 8 },
+  muted: { fontSize: 13, textAlign: "center" },
 });

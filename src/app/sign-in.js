@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
 import { isCancelled } from "../api/auth";
-import { Button, ErrorText, Screen } from "../components/Screen";
+import { GlassCard, PrimaryButton, Screen, StatusBox } from "../components/Glass";
 import { useSession } from "../components/SessionProvider";
+import { useTheme } from "../components/theme";
 
 export default function SignIn() {
+  const t = useTheme();
   const { signIn } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -20,9 +22,9 @@ export default function SignIn() {
       // as a cancellation, so show everything while developing.
       if (__DEV__) {
         console.warn("Sign-in failed", e.code, e.message);
-        setError(new Error(`${e.code ?? "error"}: ${e.message}`));
+        setError(`${e.code ?? "error"}: ${e.message}`);
       } else if (!isCancelled(e)) {
-        setError(e);
+        setError(e.message);
       }
       setBusy(false);
     }
@@ -30,22 +32,22 @@ export default function SignIn() {
 
   return (
     <Screen style={styles.center}>
-      <View style={styles.hero}>
-        <Text style={styles.title}>EventBetter</Text>
-        <Text style={styles.subtitle}>
-          Recurring Google Calendar events with a numbered title on every occurrence, so you can
-          see how long you've been subscribed.
+      <GlassCard style={styles.card}>
+        <Text style={[styles.title, { color: t.text }]}>EventBetter</Text>
+        <Text style={[styles.subtitle, { color: t.muted }]}>
+          Recurring Google Calendar events with a numbered title on every occurrence, so you can see
+          how long you've been subscribed.
         </Text>
-      </View>
-      <Button title="Continue with Google" onPress={onPress} busy={busy} />
-      <ErrorText error={error} />
+        <PrimaryButton title="Continue with Google" onPress={onPress} busy={busy} />
+        <StatusBox tone="error">{error}</StatusBox>
+      </GlassCard>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { justifyContent: "center" },
-  hero: { gap: 8, marginBottom: 16 },
-  title: { fontSize: 34, fontWeight: "700" },
-  subtitle: { fontSize: 16, lineHeight: 22, opacity: 0.8 },
+  center: { justifyContent: "center", padding: 12 },
+  card: { gap: 4 },
+  title: { fontSize: 32, fontWeight: "700", letterSpacing: -0.6 },
+  subtitle: { fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 22 },
 });

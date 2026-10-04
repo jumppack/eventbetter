@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 
 import { SessionProvider, useSession } from "../components/SessionProvider";
+import { SubscriptionsProvider } from "../components/SubscriptionsProvider";
 
 function RootStack() {
   const { status } = useSession();
@@ -18,6 +19,10 @@ function RootStack() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === "ready"}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="add" />
+        <Stack.Screen name="edit/[id]" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="licenses" />
       </Stack.Protected>
       <Stack.Protected guard={status === "needsCalendar"}>
         <Stack.Screen name="calendar-access" />
@@ -32,7 +37,9 @@ function RootStack() {
 export default function RootLayout() {
   return (
     <SessionProvider>
-      <RootStack />
+      <SubscriptionsProvider>
+        <RootStack />
+      </SubscriptionsProvider>
     </SessionProvider>
   );
 }

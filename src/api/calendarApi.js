@@ -86,6 +86,15 @@ export function createCalendarApi({ getAccessToken, fetchImpl = fetch, sleep = d
     listEvents: (calendarId, query) =>
       paginate(`${cal(calendarId)}/events`, { maxResults: 2500, ...query }),
 
+    async getEvent(calendarId, eventId) {
+      try {
+        return await request("GET", event(calendarId, eventId));
+      } catch (e) {
+        if (e.status === 404 || e.status === 410) return null;
+        throw e;
+      }
+    },
+
     insertEvent: (calendarId, body) => request("POST", `${cal(calendarId)}/events`, { body }),
 
     listInstances: (calendarId, eventId) =>

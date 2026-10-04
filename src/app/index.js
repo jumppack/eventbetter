@@ -1,76 +1,127 @@
-import { useState } from "react";
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
-import { GlassCard, Screen, SecondaryButton } from "../components/Glass";
-import { useSession } from "../components/SessionProvider";
-import { emptyForm, SubscriptionForm } from "../components/SubscriptionForm";
-import { useTheme } from "../components/theme";
+import { Fab, GlassCard, IconButton, PrimaryButton, Screen, StatusBox, TopBar } from "../components/Glass";
+import { useSubscriptions } from "../components/SubscriptionsProvider";
+import { radius, useTheme } from "../components/theme";
 
-// Add form for now; milestone 3 turns this into the subscriptions list and
-// moves the form to its own add/edit screen.
-const PROGRESS_TEXT = {
-  preparing: () => "Preparing…",
-  creating: () => "Creating the series…",
-  renaming: ({ done, total }) => `Naming events: ${done} of ${total}`,
-  done: ({ total }) => `Done: ${total} events added to your EventBetter calendar.`,
-};
+const formatDate = (date) =>
+  date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 
-export default function Home() {
+export default function Subscriptions() {
   const t = useTheme();
-  const { account, service, signOut } = useSession();
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState(null);
-  const [formKey, setFormKey] = useState(0);
+  const { items, loading, error, refresh } = useSubscriptions();
 
-  async function onSubmit(form) {
-    setBusy(true);
-    setStatus(null);
-    try {
-      await service.create(form, {
-        onProgress: (p) => setStatus({ text: PROGRESS_TEXT[p.phase](p), tone: "normal" }),
-      });
-      setFormKey((k) => k + 1); // fresh form for the next subscription
-    } catch (e) {
-      setStatus({ text: e.message, tone: "error" });
-    } finally {
-      setBusy(false);
-    }
-  }
+  // Reload whenever the list comes back into view, e.g. after add or edit.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  const firstLoad = items === null;
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={styles.flex} behavior="height">
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <GlassCard>
-            <Text style={[styles.title, { color: t.text }]}>Add subscription</Text>
-            <Text style={[styles.subtitle, { color: t.muted }]}>
-              Creates numbered events so you can see how long you've been subscribed.
-            </Text>
-            <SubscriptionForm
-              key={formKey}
-              initial={emptyForm()}
-              submitLabel="Create events"
-              onSubmit={onSubmit}
-              busy={busy}
-              status={status}
-            />
-          </GlassCard>
-
-          <View style={styles.footer}>
-            <Text style={[styles.muted, { color: t.muted }]}>Signed in as {account?.email}</Text>
-            <SecondaryButton title="Sign out" onPress={signOut} disabled={busy} />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <TopBar
+        title="Subscriptions"
+        right={<IconButton glyph="⚙︎" label="Settings" onPress={() => router.push("/settings")} />}
+      />
+      <FlatList
+        data={items ?? []}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <SubscriptionRow item={item} />}
+        contentContainerStyle={styles.list}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading && !firstLoad}
+            onRefresh={refresh}
+            colors={[t.buttonFrom]}
+            progressBackgroundColor={t.sheet}
+          />
+        }
+        ListHeaderComponent={error ? <StatusBox tone="error">{error.message} Pull down to try again.</StatusBox> : null}
+        ListEmptyComponent={firstLoad ? <Loading /> : error ? null : <EmptyState />}
+      />
+      {items?.length ? <Fab label="Add subscription" onPress={() => router.push("/add")} /> : null}
     </Screen>
   );
 }
 
+function SubscriptionRow({ item }) {
+  const t = useTheme();
+  const details = item.editable
+    ? `${item.frequencyLabel} · ${item.done} of ${item.total}`
+    : "Settings unavailable, can only be deleted";
+  const next = item.completed ? "Completed" : item.next ? `Next: ${formatDate(item.next.date)}` : null;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint="Opens the subscription to edit or delete it"
+      onPress={() => router.push(`/edit/${encodeURIComponent(item.id)}`)}
+      style={({ pressed }) => [styles.rowWrap, pressed && styles.pressed]}
+    >
+      <GlassCard style={styles.row}>
+        <Text style={[styles.name, { color: t.text }]} numberOfLines={2}>
+          {item.name}
+        </Text>
+        <Text style={[styles.meta, { color: t.muted }]}>{details}</Text>
+        {next ? <Text style={[styles.meta, { color: t.text }]}>{next}</Text> : null}
+        {item.editable && item.total ? <ProgressBar done={item.done} total={item.total} /> : null}
+      </GlassCard>
+    </Pressable>
+  );
+}
+
+function ProgressBar({ done, total }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.track, { backgroundColor: t.field, borderColor: t.fieldBorder }]}>
+      <View
+        style={[
+          styles.fill,
+          {
+            width: `${Math.round((done / total) * 100)}%`,
+            experimental_backgroundImage: `linear-gradient(90deg, ${t.buttonFrom}, ${t.buttonTo})`,
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+function EmptyState() {
+  const t = useTheme();
+  return (
+    <GlassCard>
+      <Text style={[styles.emptyTitle, { color: t.text }]}>No subscriptions yet</Text>
+      <Text style={[styles.emptyText, { color: t.muted }]}>
+        Add a gym membership, a streaming plan or anything you renew. EventBetter puts a recurring
+        event in your Google Calendar where every occurrence has its own title, like "Tuff Gym
+        membership: 3rd month over", so you can see how long you've been subscribed.
+      </Text>
+      <PrimaryButton title="Add subscription" onPress={() => router.push("/add")} />
+    </GlassCard>
+  );
+}
+
+function Loading() {
+  const t = useTheme();
+  return <Text style={[styles.loading, { color: t.muted }]}>Loading your subscriptions…</Text>;
+}
+
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  content: { padding: 12, paddingTop: 20, paddingBottom: 48 },
-  title: { fontSize: 26, fontWeight: "700", letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, marginTop: 6 },
-  footer: { marginTop: 20, gap: 10, paddingHorizontal: 8 },
-  muted: { fontSize: 13, textAlign: "center" },
+  list: { padding: 12, paddingBottom: 120, gap: 12, flexGrow: 1 },
+  rowWrap: { borderRadius: radius.card },
+  pressed: { opacity: 0.85 },
+  row: { paddingVertical: 18, gap: 4 },
+  name: { fontSize: 17, fontWeight: "600" },
+  meta: { fontSize: 14 },
+  track: { height: 8, borderRadius: 4, borderWidth: 1, marginTop: 10, overflow: "hidden" },
+  fill: { height: "100%", borderRadius: 4 },
+  emptyTitle: { fontSize: 22, fontWeight: "700" },
+  emptyText: { fontSize: 15, lineHeight: 22, marginTop: 8, marginBottom: 22 },
+  loading: { textAlign: "center", marginTop: 40, fontSize: 15 },
 });

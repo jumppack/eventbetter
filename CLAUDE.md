@@ -17,7 +17,7 @@ Example: "Tuff Gym membership", starting 2026-09-30, monthly, 12 events, produce
 
 Because it's a real recurring series, deleting any occurrence in Google Calendar offers "All events".
 
-A working prototype exists as a Google Apps Script web app. Its remaining source is in `reference/apps-script/` (Index.html, Styles.html). The other files were deleted once ported: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2). Port its logic; don't reinvent it. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
+A working prototype exists as a Google Apps Script web app. Its remaining source is in `reference/apps-script/` (Styles.html). The other files were deleted once ported: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2), Index.html to `src/components/SubscriptionForm.js` (milestone 3). Port its logic; don't reinvent it. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
 
 ## Fixed decisions
 
@@ -92,7 +92,7 @@ Series lookup uses `events.list` with `privateExtendedProperty` and filters out 
 
 1. **Sign in:** app name, a one-line explanation, and a "Continue with Google" button. After sign-in, explain in plain words why Calendar access is needed before the system permission prompt appears.
 2. **Subscriptions list (home):** every EventBetter series, showing name, frequency ("Every 3 months"), progress ("5 of 12") and the next occurrence date. Pull to refresh, an empty state that explains the app, and a floating add button. A banner ad is anchored at the bottom of this screen only.
-3. **Add / edit subscription:** fields and help text match `reference/apps-script/Index.html`:
+3. **Add / edit subscription:** fields and help text match the prototype's Index.html (now ported verbatim into `src/components/SubscriptionForm.js`):
    - Title
    - Start date (native date picker, defaults to today)
    - Frequency
@@ -204,7 +204,7 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 ## Implementation notes (decided during build)
 
 - The deleted Config.gs defaulted `maxCount` to 24, superseded by this spec's 12.
-- Delete each remaining reference file once it's fully ported: Index.html after milestone 3, Styles.html after milestone 6.
+- Delete each remaining reference file once it's fully ported: Styles.html after milestone 6.
 - `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by both create and the live preview), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field for future migrations.
 - Extended property values are capped at 1024 characters, and longer values are silently truncated by the API. `planSeries` measures UTF-8 bytes (never fewer than characters) and throws `PropertyTooLargeError`.
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.
@@ -213,6 +213,11 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - Form UI (pulled forward from milestone 3 at the user's request): `src/components/SubscriptionForm.js` is shared by add and edit, with fields and help text copied verbatim from `Index.html` and a live preview of the first 3 titles. `@react-native-community/datetimepicker` (approved) provides the native Android date dialog through `DateTimePickerAndroid.open`; the optional End date has a "Clear" button. Frequency uses a JS bottom sheet, not a native picker.
 - Glass look without new packages: `src/components/theme.js` holds light and dark tokens based on the prototype's. `Glass.js` draws the background and blobs with RN gradients and uses `boxShadow`, both of which need the New Architecture. In RN 0.86 the gradient prop is `experimental_backgroundImage`; plain `backgroundImage` is silently ignored. Real backdrop blur (`expo-blur`) is still milestone 6.
 - Contrast: every text/background pair meets WCAG AA in both themes (4.5:1 text and placeholders, 3:1 field borders). `theme.contrast.test.js` composites the translucent layers over the background's lightest and darkest spots and enforces this, so check it whenever tokens change. Use `link` (not `accent`) for text-colored accents, `fieldBorder` for inputs, and `buttonFrom`/`buttonTo` for the primary button.
+- Edit order (milestone 3): `update()` creates the new series first (the old one doesn't count as a duplicate), then deletes the old one, so a failed edit never loses the subscription. If the old one can't be removed, it throws `OldSeriesNotRemovedError` and both stay listed. Deletes treat 404/410 as already gone.
+- List progress (`src/lib/summary.js`): "5 of 12" counts numbered occurrences dated today or earlier; the start event isn't counted but can be "Next". Dates compare as local YYYY-MM-DD strings. Series whose `ebConfig` can't be read are still listed and deletable, but not editable. `list()` never creates the calendar.
+- `SubscriptionsProvider` caches the list for the edit screen and remounts per session so another account's data never shows.
+- Open-source licenses: `npm run licenses` regenerates `src/config/licenses.json` from the Android bundle's source map, so only JS that actually ships is listed, plus a hand-kept list of native Android libraries in `scripts/generate-licenses.js`. Rerun after adding or upgrading a dependency.
+- Settings' "Manage ad privacy choices" arrives with the consent SDK in milestone 5. The privacy policy and homepage links point at `src/config/links.js`; the pages themselves come in milestone 7.
 - `validate()` returns `{ sub, errors, valid }` with per-field errors for the form. `normalize()` throws a `ValidationError` carrying the same errors.
 
 ## Working style

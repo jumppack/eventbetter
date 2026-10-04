@@ -1,15 +1,22 @@
 import { createFakeCalendarApi, createMemoryStorage } from "../../../jest/fakeCalendarApi";
 import { WRITE_DELAY_MS } from "../../config/defaults";
 import { ValidationError } from "../../lib/validate";
+import { parseDate, toDateString } from "../../lib/schedule";
 import {
   createSubscriptionService,
+  OldSeriesNotRemovedError,
   SeriesExistsError,
   SeriesMismatchError,
 } from "../subscriptionService";
 
 const gym = { name: "Tuff Gym membership", start: "2026-09-30" };
 
-function setup({ storage = createMemoryStorage(), canListCalendars = true, calendarList } = {}) {
+function setup({
+  storage = createMemoryStorage(),
+  canListCalendars = true,
+  calendarList,
+  today = "2026-10-04",
+} = {}) {
   const api = createFakeCalendarApi({ calendarList });
   const sleeps = [];
   const service = createSubscriptionService({
@@ -17,6 +24,7 @@ function setup({ storage = createMemoryStorage(), canListCalendars = true, calen
     storage,
     canListCalendars,
     sleep: async (ms) => void sleeps.push(ms),
+    now: () => parseDate(today),
   });
   return { api, storage, service, sleeps };
 }
@@ -196,5 +204,127 @@ describe("ensureCalendar", () => {
     await service.ensureCalendar();
     expect(api.calls.some(([name]) => name === "listCalendarList")).toBe(false);
     expect(api.calls.filter(([name]) => name === "insertCalendar")).toHaveLength(1);
+  });
+});
+
+describe("list", () => {
+  it("returns nothing, without creating a calendar, for a new user", async () => {
+    const { api, service } = setup();
+    expect(await service.list()).toEqual([]);
+    expect(api.calls.some(([name]) => name === "insertCalendar")).toBe(false);
+  });
+
+  it("lists each series once with frequency, progress and next occurrence", async () => {
+    const { service } = setup({ today: "2027-02-28" });
+    await service.create(gym);
+    await service.create({ name: "Netflix", start: "2026-01-15", interval: "3", maxCount: "4" });
+
+    const list = await service.list();
+    expect(list.map((s) => s.name)).toEqual(["Tuff Gym membership", "Netflix"]);
+
+    const [gymSub, netflix] = list;
+    expect(gymSub).toMatchObject({ editable: true, frequencyLabel: "Every month", done: 5, total: 12 });
+    expect(toDateString(gymSub.next.date)).toBe("2027-03-30");
+    expect(gymSub.next.title).toBe("Tuff Gym membership: 6th month over");
+    expect(netflix).toMatchObject({ frequencyLabel: "Every 3 months", done: 4, total: 4, completed: true });
+  });
+
+  it("carries the saved form config for the edit screen", async () => {
+    const { service } = setup();
+    await service.create({ ...gym, startTitle: "{name} started" });
+    const [sub] = await service.list();
+    expect(sub.config).toMatchObject({ ...gym, startTitle: "{name} started", maxCount: 12 });
+  });
+
+  it("still lists a series whose config can't be read, but not as editable", async () => {
+    const { api, service } = setup();
+    const { calendarId, seriesId } = await service.create(gym);
+    api.calls.length = 0;
+    const event = (await api.listEvents(calendarId)).find((e) => e.id === seriesId);
+    event.extendedProperties.private.ebConfig = "{broken";
+
+    const [sub] = await service.list();
+    expect(sub).toMatchObject({ id: seriesId, name: "Tuff Gym membership", editable: false });
+  });
+});
+
+describe("get", () => {
+  it("returns one subscription, or null once deleted", async () => {
+    const { service } = setup();
+    const { seriesId } = await service.create(gym);
+    expect((await service.get(seriesId)).name).toBe("Tuff Gym membership");
+    await service.remove(seriesId);
+    expect(await service.get(seriesId)).toBeNull();
+  });
+});
+
+describe("remove", () => {
+  it("deletes the series master, removing every occurrence", async () => {
+    const { api, service } = setup();
+    const { calendarId, seriesId } = await service.create(gym);
+    await service.remove(seriesId);
+    expect(await api.listEvents(calendarId)).toEqual([]);
+  });
+
+  it("treats an already-deleted series as removed", async () => {
+    const { service } = setup();
+    const { seriesId } = await service.create(gym);
+    await service.remove(seriesId);
+    await expect(service.remove(seriesId)).resolves.toBeUndefined();
+  });
+});
+
+describe("update", () => {
+  it("replaces the series with one built from the edited config", async () => {
+    const { service } = setup();
+    const { seriesId } = await service.create(gym);
+    const result = await service.update(seriesId, { ...gym, title: "{name} #{count}", maxCount: "3" });
+
+    const list = await service.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(result.seriesId);
+    expect(list[0].id).not.toBe(seriesId);
+    expect(list[0].next.title).toBe("Tuff Gym membership #1");
+    expect(list[0].total).toBe(3);
+  });
+
+  it("allows keeping the same name, start and frequency", async () => {
+    const { service } = setup();
+    const { seriesId } = await service.create(gym);
+    await expect(service.update(seriesId, { ...gym, maxCount: "6" })).resolves.toBeDefined();
+  });
+
+  it("still refuses to collide with a different existing series", async () => {
+    const { service } = setup();
+    await service.create(gym);
+    const { seriesId } = await service.create({ ...gym, name: "Other" });
+    await expect(service.update(seriesId, gym)).rejects.toThrow(SeriesExistsError);
+  });
+
+  it("keeps the old series if creating the new one fails", async () => {
+    const { api, service } = setup();
+    const { seriesId } = await service.create(gym);
+    api.patchEvent = async () => {
+      throw Object.assign(new Error("Forbidden"), { status: 403 });
+    };
+
+    await expect(service.update(seriesId, { ...gym, maxCount: "3" })).rejects.toThrow("Forbidden");
+    const list = await service.list();
+    expect(list.map((s) => s.id)).toEqual([seriesId]);
+  });
+
+  it("reports when the new series was saved but the old one couldn't be removed", async () => {
+    const { api, service } = setup();
+    const { seriesId } = await service.create(gym);
+    const realDelete = api.deleteEvent;
+    api.deleteEvent = async (calendarId, eventId) => {
+      if (eventId === seriesId) throw Object.assign(new Error("Server error"), { status: 500 });
+      return realDelete(calendarId, eventId);
+    };
+
+    await expect(service.update(seriesId, { ...gym, maxCount: "3" })).rejects.toThrow(
+      OldSeriesNotRemovedError,
+    );
+    expect(await service.list()).toHaveLength(2);
   });
 });

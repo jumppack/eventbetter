@@ -29,6 +29,27 @@ export function emptyForm() {
   };
 }
 
+// Saved config (numbers) back to form values (strings) for the edit screen.
+export function toFormValues(config) {
+  return {
+    ...emptyForm(),
+    ...config,
+    interval: String(config.interval),
+    maxCount: String(config.maxCount),
+    end: config.end ?? "",
+    startTitle: config.startTitle ?? "",
+  };
+}
+
+const PROGRESS_TEXT = {
+  preparing: () => "Preparing…",
+  creating: () => "Creating the series…",
+  renaming: ({ done, total }) => `Naming events: ${done} of ${total}`,
+  done: ({ total }) => `Done: ${total} events added to your EventBetter calendar.`,
+};
+
+export const progressText = (p) => PROGRESS_TEXT[p.phase](p);
+
 const PREVIEW_COUNT = 3;
 
 // Fields and help text follow the prototype's Index.html. `status` is

@@ -9,7 +9,8 @@
     "android": "expo run:android",
     "test": "jest",
     "lint": "expo lint",
-    "test:live": "jest --selectProjects Asia/Kolkata --testPathPattern calendarApi.live"
+    "test:live": "jest --selectProjects Asia/Kolkata --testPathPattern calendarApi.live",
+    "licenses": "node scripts/generate-licenses.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

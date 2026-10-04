@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import {
   authorizeCalendar,
   createTokenProvider,
+  disconnect as googleDisconnect,
   getStoredAccount,
   needsInteractiveAuthorization,
   signIn as googleSignIn,
@@ -56,6 +57,15 @@ export function SessionProvider({ children }) {
       async signOut() {
         await googleSignOut();
         setState({ status: "signedOut", account: null, service: null });
+      },
+      // Revokes EventBetter's access in the Google account. Local state is
+      // cleared even if revoking fails (e.g. offline), so sign out either way.
+      async disconnect() {
+        try {
+          await googleDisconnect(state.account);
+        } finally {
+          setState({ status: "signedOut", account: null, service: null });
+        }
       },
     }),
     [state, authorize],

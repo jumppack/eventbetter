@@ -163,4 +163,82 @@ const styles = StyleSheet.create({
   },
   secondaryText: { fontSize: 15, fontWeight: "600" },
   status: { marginTop: 16, padding: 14, borderRadius: radius.field, borderWidth: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingHorizontal: 16 },
+  topBarTitle: { flex: 1, fontSize: 24, fontWeight: "700", letterSpacing: -0.4 },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fabGlyph: { color: "#fff", fontSize: 32, lineHeight: 36, fontWeight: "400" },
 });
+
+// Screen header: optional back button, title, optional right-side action.
+export function TopBar({ title, onBack, right }) {
+  const t = useTheme();
+  return (
+    <View style={styles.topBar}>
+      {onBack ? <IconButton glyph="‹" label="Back" onPress={onBack} size={30} /> : null}
+      <Text style={[styles.topBarTitle, { color: t.text }]} numberOfLines={1} accessibilityRole="header">
+        {title}
+      </Text>
+      {right}
+    </View>
+  );
+}
+
+export function IconButton({ glyph, label, onPress, size = 22 }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.iconButton,
+        { backgroundColor: pressed ? t.fieldFocus : t.field, borderColor: t.border },
+      ]}
+    >
+      <Text style={{ color: t.text, fontSize: size, lineHeight: size + 4 }}>{glyph}</Text>
+    </Pressable>
+  );
+}
+
+// Floating add button, bottom-right.
+export function Fab({ label, onPress, bottom = 24 }) {
+  const t = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.fab,
+        {
+          bottom,
+          experimental_backgroundImage: `linear-gradient(135deg, ${t.buttonFrom}, ${t.buttonTo})`,
+          boxShadow: "0px 8px 24px rgba(47, 91, 230, 0.4), inset 0px 1px 0px rgba(255, 255, 255, 0.45)",
+          transform: [{ scale: pressed ? 0.96 : 1 }],
+        },
+      ]}
+    >
+      <Text style={styles.fabGlyph}>+</Text>
+    </Pressable>
+  );
+}
+

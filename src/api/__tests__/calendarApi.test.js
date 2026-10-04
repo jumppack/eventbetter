@@ -75,6 +75,12 @@ describe("calendarApi", () => {
     expect(await api.getCalendar("gone")).toBeNull();
   });
 
+  it("returns null for a deleted event", async () => {
+    const { api } = setup([apiError(410, "deleted"), apiError(404, "notFound")]);
+    expect(await api.getEvent("c", "gone")).toBeNull();
+    expect(await api.getEvent("c", "missing")).toBeNull();
+  });
+
   it("returns null for 204 responses", async () => {
     const { api } = setup([{ ok: true, status: 204, json: async () => ({}) }]);
     expect(await api.deleteEvent("c", "e")).toBeNull();

@@ -76,6 +76,11 @@ export function createFakeCalendarApi({ calendarList = [] } = {}) {
       return key ? items.filter((e) => e.extendedProperties?.private?.[key] === value) : items;
     },
 
+    async getEvent(calendarId, eventId) {
+      calls.push(["getEvent", calendarId, eventId]);
+      return eventsOf(calendarId).get(eventId) ?? null;
+    },
+
     async insertEvent(calendarId, body) {
       calls.push(["insertEvent", calendarId, body]);
       const event = { id: `evt${nextId++}`, ...structuredClone(body) };
@@ -98,7 +103,8 @@ export function createFakeCalendarApi({ calendarList = [] } = {}) {
 
     async deleteEvent(calendarId, eventId) {
       calls.push(["deleteEvent", calendarId, eventId]);
-      eventsOf(calendarId).delete(eventId);
+      // Google answers 410 Gone for an event that's already deleted.
+      if (!eventsOf(calendarId).delete(eventId)) throw Object.assign(new Error("Gone"), { status: 410 });
     },
   };
   return api;

@@ -11,6 +11,7 @@ import {
   signOut as googleSignOut,
 } from "../api/auth";
 import { createCalendarApi } from "../api/calendarApi";
+import { reminders } from "../services/reminders";
 import { createSubscriptionService } from "../services/subscriptionService";
 
 // status: "loading" -> "signedOut" | "needsCalendar" | "ready"
@@ -55,12 +56,14 @@ export function SessionProvider({ children }) {
       },
       grantCalendar: () => authorize(state.account, true),
       async signOut() {
+        await reminders.clear();
         await googleSignOut();
         setState({ status: "signedOut", account: null, service: null });
       },
       // Revokes EventBetter's access in the Google account. Local state is
       // cleared even if revoking fails (e.g. offline), so sign out either way.
       async disconnect() {
+        await reminders.clear().catch(() => {});
         try {
           await googleDisconnect(state.account);
         } finally {

@@ -1,12 +1,14 @@
 import Constants from "expo-constants";
-import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { GlassCard, Screen, SecondaryButton, StatusBox, TopBar } from "../components/Glass";
 import { useSession } from "../components/SessionProvider";
+import { useSubscriptions } from "../components/SubscriptionsProvider";
 import { useTheme } from "../components/theme";
 import { LINKS } from "../config/links";
+import { reminders } from "../services/reminders";
 
 export default function Settings() {
   const t = useTheme();
@@ -55,6 +57,8 @@ export default function Settings() {
           <StatusBox tone="error">{error}</StatusBox>
         </Section>
 
+        <RemindersSection />
+
         <Section title="About">
           <LinkRow label="Privacy policy" onPress={() => Linking.openURL(LINKS.privacyPolicy)} external />
           <LinkRow label="Homepage" onPress={() => Linking.openURL(LINKS.homepage)} external />
@@ -65,6 +69,62 @@ export default function Settings() {
         </Section>
       </ScrollView>
     </Screen>
+  );
+}
+
+// Calendar reminders are always on the series; this covers the extra local
+// notifications, which need Android's notification permission.
+function RemindersSection() {
+  const t = useTheme();
+  const { refresh } = useSubscriptions();
+  const [permission, setPermission] = useState(null);
+
+  const check = useCallback(() => {
+    reminders.getPermission().then(setPermission).catch(() => {});
+  }, []);
+
+  // Re-check on focus and when returning from system settings.
+  useFocusEffect(check);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => next === "active" && check());
+    return () => sub.remove();
+  }, [check]);
+
+  async function turnOn() {
+    if (permission?.canAskAgain) {
+      const result = await reminders.request();
+      setPermission(result);
+      if (result.granted) refresh();
+    } else {
+      Linking.openSettings();
+    }
+  }
+
+  const on = permission?.granted;
+  return (
+    <Section title="Reminders">
+      <Text style={[styles.primary, { color: t.text }]}>
+        {on ? "Notifications are on" : "Notifications are off"}
+      </Text>
+      <Text style={[styles.secondary, { color: t.muted }]}>
+        {on
+          ? "You get a notification at 9:00 AM the day before each event, for the next two events of every subscription."
+          : "Google Calendar still reminds you the day before. Turn on notifications to also get them from EventBetter."}
+      </Text>
+      {permission && !on ? (
+        <View style={styles.actions}>
+          <SecondaryButton
+            title={permission.canAskAgain ? "Turn on notifications" : "Open system settings"}
+            onPress={turnOn}
+          />
+        </View>
+      ) : null}
+      {__DEV__ && on ? (
+        <View style={styles.actions}>
+          <SecondaryButton title="Send a test reminder in 10 seconds" onPress={() => reminders.sendTest()} />
+        </View>
+      ) : null}
+    </Section>
   );
 }
 

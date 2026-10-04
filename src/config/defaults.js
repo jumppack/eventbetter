@@ -30,3 +30,9 @@ export const REMINDER_MINUTES = 900;
 
 // Calendar API: longer extended property values are silently truncated.
 export const MAX_PROPERTY_VALUE_LENGTH = 1024;
+
+// Local notifications: 9:00 AM local time the day before each occurrence,
+// for the next few occurrences only (Android caps pending alarms per app).
+export const REMINDER_HOUR = 9;
+export const REMINDERS_PER_SUBSCRIPTION = 2;
+export const MAX_REMINDERS = 50;

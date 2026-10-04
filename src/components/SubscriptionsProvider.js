@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 
+import { reminders } from "../services/reminders";
 import { useSession } from "./SessionProvider";
 
 // The list screen loads subscriptions; add/edit/delete refresh them, and the
@@ -37,6 +39,8 @@ function Store({ service, children }) {
       try {
         const items = await service.list();
         setState({ items, loading: false, error: null });
+        // Every refresh re-derives local reminders from Calendar data.
+        reminders.sync(items).catch((e) => console.warn("Reminder sync failed", e));
       } catch (error) {
         setState((s) => ({ ...s, loading: false, error }));
       } finally {
@@ -45,6 +49,12 @@ function Store({ service, children }) {
     })();
     return inFlight.current;
   }, [service]);
+
+  // Coming back to the app re-reads Calendar, which also reschedules reminders.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => next === "active" && refresh());
+    return () => sub.remove();
+  }, [refresh]);
 
   const value = useMemo(() => ({ ...state, refresh, service }), [state, refresh, service]);
   return <SubscriptionsContext.Provider value={value}>{children}</SubscriptionsContext.Provider>;

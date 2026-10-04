@@ -6,6 +6,7 @@ import { GlassCard, Screen, TopBar } from "../components/Glass";
 import { emptyForm, progressText, SubscriptionForm } from "../components/SubscriptionForm";
 import { useSubscriptions } from "../components/SubscriptionsProvider";
 import { useBlockBack } from "../components/useBlockBack";
+import { reminders } from "../services/reminders";
 import { useTheme } from "../components/theme";
 
 export default function AddSubscription() {
@@ -20,6 +21,8 @@ export default function AddSubscription() {
     setStatus(null);
     try {
       await service.create(form, { onProgress: (p) => setStatus({ text: progressText(p), tone: "normal" }) });
+      // The first subscription is the natural moment to offer reminders.
+      await reminders.askOnce().catch(() => {});
       await refresh();
       router.back();
     } catch (e) {

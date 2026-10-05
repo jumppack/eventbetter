@@ -1,6 +1,6 @@
 import { parseDate, toDateString } from "../schedule";
 import { buildOccurrences } from "../series";
-import { compareSubscriptions, describeFrequency, summarize } from "../summary";
+import { compareSeries, describeFrequency, summarize } from "../summary";
 import { normalize } from "../validate";
 
 const gym = normalize({ name: "Tuff Gym membership", start: "2026-09-30" });
@@ -55,7 +55,7 @@ describe("summarize", () => {
   });
 });
 
-describe("compareSubscriptions", () => {
+describe("compareSeries", () => {
   const sub = (name, next, completed = false) => ({
     name,
     completed,
@@ -68,7 +68,7 @@ describe("compareSubscriptions", () => {
       sub("Later", "2027-01-01"),
       sub("B soon", "2026-11-01"),
       sub("A soon", "2026-11-01"),
-    ].sort(compareSubscriptions);
+    ].sort(compareSeries);
     expect(list.map((s) => s.name)).toEqual(["A soon", "B soon", "Later", "Done"]);
   });
 });

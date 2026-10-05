@@ -3,11 +3,11 @@ import { WRITE_DELAY_MS } from "../../config/defaults";
 import { ValidationError } from "../../lib/validate";
 import { parseDate, toDateString } from "../../lib/schedule";
 import {
-  createSubscriptionService,
+  createSeriesService,
   OldSeriesNotRemovedError,
   SeriesExistsError,
   SeriesMismatchError,
-} from "../subscriptionService";
+} from "../seriesService";
 
 const gym = { name: "Tuff Gym membership", start: "2026-09-30" };
 
@@ -19,7 +19,7 @@ function setup({
 } = {}) {
   const api = createFakeCalendarApi({ calendarList });
   const sleeps = [];
-  const service = createSubscriptionService({
+  const service = createSeriesService({
     api,
     storage,
     canListCalendars,
@@ -167,7 +167,7 @@ describe("ensureCalendar", () => {
     const before = setup({ calendarList });
     const id = await before.service.ensureCalendar();
 
-    const after = createSubscriptionService({
+    const after = createSeriesService({
       api: before.api,
       storage: createMemoryStorage(),
       canListCalendars: true,
@@ -326,5 +326,52 @@ describe("update", () => {
       OldSeriesNotRemovedError,
     );
     expect(await service.list()).toHaveLength(2);
+  });
+});
+
+describe("removeAll", () => {
+  it("deletes every series, reporting progress, and keeps the calendar", async () => {
+    const { api, service } = setup();
+    await service.create(gym);
+    const { calendarId } = await service.create({ ...gym, name: "Yoga", frequency: "weekly" });
+    const progress = [];
+
+    expect(await service.removeAll({ onProgress: (p) => progress.push(p) })).toEqual({ deleted: 2 });
+    expect(progress).toEqual([
+      { done: 0, total: 2 },
+      { done: 1, total: 2 },
+      { done: 2, total: 2 },
+    ]);
+    expect(await service.list()).toEqual([]);
+    expect(api.calendars.has(calendarId)).toBe(true);
+  });
+
+  it("does nothing for a new user", async () => {
+    const { service } = setup();
+    expect(await service.removeAll()).toEqual({ deleted: 0 });
+  });
+});
+
+describe("occurrenceCount", () => {
+  it("counts every dated item, including the start event", async () => {
+    const { service } = setup();
+    await service.create({ ...gym, startTitle: "{name} started", maxCount: "3" });
+    const [series] = await service.list();
+    expect(series).toMatchObject({ occurrenceCount: 4, total: 3 });
+  });
+});
+
+describe("calendars created before the rename", () => {
+  it("are still recognized after a reinstall", async () => {
+    const calendarList = [
+      {
+        id: "old",
+        summary: "EventBetter",
+        description: "Created by the EventBetter app. Deleting this calendar deletes all its subscriptions.",
+        accessRole: "owner",
+      },
+    ];
+    const { service } = setup({ calendarList });
+    expect(await service.ensureCalendar()).toBe("old");
   });
 });

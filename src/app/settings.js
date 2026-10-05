@@ -4,16 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { privacyOptionsRequired, showPrivacyOptions } from "../ads/consent";
+import { confirm } from "../components/confirm";
 import { GlassCard, Screen, SecondaryButton, StatusBox, TopBar } from "../components/Glass";
 import { useSession } from "../components/SessionProvider";
-import { useSubscriptions } from "../components/SubscriptionsProvider";
+import { useSeries } from "../components/SeriesProvider";
+import { useBlockBack } from "../components/useBlockBack";
 import { useTheme } from "../components/theme";
 import { LINKS } from "../config/links";
 import { reminders } from "../services/reminders";
 
 export default function Settings() {
   const t = useTheme();
-  const { account, signOut, disconnect } = useSession();
+  const { account, signOut } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -28,17 +30,6 @@ export default function Settings() {
     }
   }
 
-  function confirmDisconnect() {
-    Alert.alert(
-      "Disconnect Google account?",
-      "EventBetter's access to your Google account is removed and this phone's app data is cleared. Your EventBetter calendar and its events stay in Google Calendar; delete the calendar there if you don't want it.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Disconnect", style: "destructive", onPress: () => run(disconnect) },
-      ],
-    );
-  }
-
   return (
     <Screen>
       <TopBar title="Settings" onBack={() => router.back()} />
@@ -48,12 +39,6 @@ export default function Settings() {
           {account?.name ? <Text style={[styles.secondary, { color: t.muted }]}>{account.email}</Text> : null}
           <View style={styles.actions}>
             <SecondaryButton title="Sign out" onPress={() => run(signOut)} disabled={busy} />
-            <SecondaryButton
-              title="Disconnect Google account"
-              color={t.danger}
-              onPress={confirmDisconnect}
-              disabled={busy}
-            />
           </View>
           <StatusBox tone="error">{error}</StatusBox>
         </Section>
@@ -70,8 +55,110 @@ export default function Settings() {
             Version {Constants.expoConfig?.version ?? "unknown"}
           </Text>
         </Section>
+
+        <DangerZone />
       </ScrollView>
     </Screen>
+  );
+}
+
+const countText = (items) => {
+  const occurrences = items.reduce((sum, s) => sum + (s.occurrenceCount ?? 0), 0);
+  const events = `${items.length} recurring event${items.length === 1 ? "" : "s"}`;
+  return occurrences ? `${events} and their ${occurrences} occurrences` : events;
+};
+
+// Destructive actions, kept apart at the bottom. Both delete only what
+// EventBetter created; the EventBetter calendar itself and anything the user
+// added to it by hand stay in Google Calendar.
+function DangerZone() {
+  const t = useTheme();
+  const { disconnect } = useSession();
+  const { items, refresh, service } = useSeries();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(null);
+  useBlockBack(busy);
+
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh]),
+  );
+
+  const count = items?.length ?? 0;
+
+  async function deleteAll() {
+    setStatus({ text: `Deleting 0 of ${count}…`, tone: "normal" });
+    await service.removeAll({
+      onProgress: ({ done, total }) => setStatus({ text: `Deleting ${done} of ${total}…`, tone: "normal" }),
+    });
+  }
+
+  async function run(action, doneText) {
+    setBusy(true);
+    try {
+      await action();
+      if (doneText) setStatus({ text: doneText, tone: "normal" });
+    } catch (e) {
+      setStatus({ text: e.message, tone: "error" });
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  }
+
+  async function onDeleteAll() {
+    const ok = await confirm(
+      "Delete all recurring events?",
+      `This removes ${countText(items)} from your EventBetter calendar. It can't be undone.`,
+      "Delete all",
+      { destructive: true },
+    );
+    if (ok) run(deleteAll, "All recurring events deleted.");
+  }
+
+  function onDisconnect() {
+    const choices = [
+      { text: "Cancel", style: "cancel" },
+      { text: "Disconnect only", onPress: () => run(disconnect) },
+    ];
+    if (count) {
+      choices.push({
+        text: "Delete events too",
+        style: "destructive",
+        onPress: () =>
+          run(async () => {
+            await deleteAll();
+            await disconnect();
+          }),
+      });
+    }
+    Alert.alert(
+      "Disconnect Google account?",
+      count
+        ? `EventBetter's access to your Google account is removed and this phone's app data is cleared. You can also delete your ${countText(items)} first; otherwise they stay in Google Calendar.`
+        : "EventBetter's access to your Google account is removed and this phone's app data is cleared.",
+      choices,
+    );
+  }
+
+  return (
+    <Section title="Danger zone">
+      <Text style={[styles.secondary, { color: t.muted }]}>
+        These only affect what EventBetter created. The EventBetter calendar and anything you added to
+        it yourself stay in Google Calendar.
+      </Text>
+      <View style={styles.actions}>
+        <SecondaryButton
+          title={count ? `Delete all recurring events (${count})` : "Delete all recurring events"}
+          color={t.danger}
+          onPress={onDeleteAll}
+          disabled={busy || !count}
+        />
+        <SecondaryButton title="Disconnect Google account" color={t.danger} onPress={onDisconnect} disabled={busy} />
+      </View>
+      <StatusBox tone={status?.tone}>{status?.text}</StatusBox>
+    </Section>
   );
 }
 
@@ -79,7 +166,7 @@ export default function Settings() {
 // notifications, which need Android's notification permission.
 function RemindersSection() {
   const t = useTheme();
-  const { refresh } = useSubscriptions();
+  const { refresh } = useSeries();
   const [permission, setPermission] = useState(null);
 
   const check = useCallback(() => {
@@ -111,7 +198,7 @@ function RemindersSection() {
       </Text>
       <Text style={[styles.secondary, { color: t.muted }]}>
         {on
-          ? "You get a notification at 9:00 AM the day before each event, for the next two events of every subscription."
+          ? "You get a notification at 9:00 AM the day before each occurrence, for the next two occurrences of every recurring event."
           : "Google Calendar still reminds you the day before. Turn on notifications to also get them from EventBetter."}
       </Text>
       {permission && !on ? (
@@ -156,7 +243,7 @@ function AdPrivacySection() {
   return (
     <Section title="Ads">
       <Text style={[styles.secondary, { color: t.muted }]}>
-        EventBetter is free and shows one banner ad on the subscriptions list. Your calendar data and
+        EventBetter is free and shows one banner ad on the recurring events list. Your calendar data and
         Google account details are never shared with the ad network.
       </Text>
       {required ? (

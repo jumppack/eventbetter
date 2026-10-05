@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { DEFAULTS } from "../config/defaults";
+import { DEFAULTS, FREQUENCIES, UNITS } from "../config/defaults";
 import { isValidDateString, parseDate, toDateString } from "../lib/schedule";
 import { buildOccurrences } from "../lib/series";
 import { validate } from "../lib/validate";
@@ -9,12 +9,12 @@ import { Bullet, Code, DateField, Disclosure, Field, Help, SelectField, TextFiel
 import { PrimaryButton, StatusBox } from "./Glass";
 import { radius, useTheme } from "./theme";
 
-const FREQUENCY_OPTIONS = [
-  { value: "monthly", label: "Monthly" },
-  { value: "weekly", label: "Weekly" },
-  { value: "yearly", label: "Yearly" },
-  { value: "daily", label: "Daily" },
-];
+// Units for "Repeats every [n] [unit]", shortest period first, pluralized to
+// match the number typed.
+function unitOptions(interval) {
+  const plural = Number(interval) !== 1;
+  return FREQUENCIES.map((value) => ({ value, label: plural ? `${UNITS[value]}s` : UNITS[value] }));
+}
 
 export function emptyForm() {
   return {
@@ -44,8 +44,8 @@ export function toFormValues(config) {
 const PROGRESS_TEXT = {
   preparing: () => "Preparing…",
   creating: () => "Creating the series…",
-  renaming: ({ done, total }) => `Naming events: ${done} of ${total}`,
-  done: ({ total }) => `Done: ${total} events added to your EventBetter calendar.`,
+  renaming: ({ done, total }) => `Naming occurrences: ${done} of ${total}`,
+  done: ({ total }) => `Done: ${total} occurrences added to your EventBetter calendar.`,
 };
 
 export const progressText = (p) => PROGRESS_TEXT[p.phase](p);
@@ -54,7 +54,7 @@ const PREVIEW_COUNT = 3;
 
 // Fields and help text follow the prototype's Index.html. `status` is
 // { text, tone } shown under the button.
-export function SubscriptionForm({ initial, submitLabel, onSubmit, busy, status }) {
+export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
   const [form, setForm] = useState(initial ?? emptyForm);
   const [showErrors, setShowErrors] = useState(false);
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
@@ -98,21 +98,30 @@ export function SubscriptionForm({ initial, submitLabel, onSubmit, busy, status 
         <DateField value={form.start} onChange={set("start")} />
       </Field>
 
-      <Field label="Frequency" error={fieldError("frequency")}>
-        <SelectField
-          title="Frequency"
-          value={form.frequency}
-          options={FREQUENCY_OPTIONS}
-          onChange={set("frequency")}
-        />
-      </Field>
-
       <Field
-        label="Repeat every"
-        error={fieldError("interval")}
-        help="How many Frequency units between each event. 1 = every month, 3 = every 3 months (quarterly), 6 = every 6 months. With Weekly, 2 = every 2 weeks."
+        label="Repeats every"
+        error={fieldError("interval") ?? fieldError("frequency")}
+        help="For example, every 3 months is quarterly and every 2 weeks is fortnightly."
       >
-        <TextField value={form.interval} onChangeText={set("interval")} keyboardType="number-pad" />
+        <View style={styles.inline}>
+          <TextField
+            value={form.interval}
+            onChangeText={set("interval")}
+            keyboardType="number-pad"
+            accessibilityLabel="Repeats every, number"
+            style={styles.interval}
+            maxLength={3}
+          />
+          <View style={styles.unit}>
+            <SelectField
+              title="Repeats every"
+              value={form.frequency}
+              options={unitOptions(form.interval)}
+              onChange={set("frequency")}
+              accessibilityLabel="Repeats every, unit"
+            />
+          </View>
+        </View>
       </Field>
 
       <Field label="End date (optional)" error={fieldError("end")}>
@@ -126,9 +135,9 @@ export function SubscriptionForm({ initial, submitLabel, onSubmit, busy, status 
       </Field>
 
       <Field
-        label="Number of events to create"
+        label="Number of occurrences"
         error={fieldError("maxCount")}
-        help="How many events to add to your calendar. If you set an End date, it stops at whichever comes first."
+        help="How many occurrences to add to your calendar. If you set an End date, it stops at whichever comes first."
       >
         <TextField value={form.maxCount} onChangeText={set("maxCount")} keyboardType="number-pad" />
       </Field>
@@ -138,10 +147,10 @@ export function SubscriptionForm({ initial, submitLabel, onSubmit, busy, status 
       </Field>
 
       <Field
-        label="Start event title (optional)"
+        label="Start date title (optional)"
         help={
           <Help>
-            Adds one extra event on the start date itself, e.g. <Code>{"{name} started"}</Code> → Tuff Gym
+            Adds one extra occurrence on the start date itself, e.g. <Code>{"{name} started"}</Code> → Tuff Gym
             membership started. Leave blank to skip. The grey text is only a hint, not a value.
           </Help>
         }
@@ -188,18 +197,18 @@ function Preview({ items }) {
 function TemplateHelp() {
   return (
     <View>
-      <Help>The name each event gets. Words in {"{ }"} are replaced automatically for every event.</Help>
+      <Help>The title each occurrence gets. Words in {"{ }"} are filled in automatically for every occurrence.</Help>
       <Bullet>
         <Code>{"{name}"}</Code> the Title above
       </Bullet>
       <Bullet>
-        <Code>{"{count}"}</Code> event number: 1, 2, 3
+        <Code>{"{count}"}</Code> occurrence number: 1, 2, 3
       </Bullet>
       <Bullet>
-        <Code>{"{ord}"}</Code> event number as a position: 1st, 2nd, 3rd
+        <Code>{"{ord}"}</Code> occurrence number as a position: 1st, 2nd, 3rd
       </Bullet>
       <Bullet>
-        <Code>{"{elapsed}"}</Code> total units passed: count × Repeat every
+        <Code>{"{elapsed}"}</Code> total units passed: count × Repeats every
       </Bullet>
       <Bullet>
         <Code>{"{unit}"}</Code> month, week, year or day
@@ -230,4 +239,7 @@ const styles = StyleSheet.create({
   previewDate: { fontSize: 12 },
   previewText: { fontSize: 14, fontWeight: "500" },
   submit: { marginTop: 26 },
+  inline: { flexDirection: "row", gap: 10 },
+  interval: { width: 76, textAlign: "center" },
+  unit: { flex: 1 },
 });

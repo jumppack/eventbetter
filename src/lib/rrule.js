@@ -7,7 +7,7 @@ const FREQ = {
   yearly: "YEARLY",
 };
 
-// `start` is the subscription start date (which the clamping is based on),
+// `start` is the event's start date (which the clamping is based on),
 // not necessarily the series' first occurrence. `count` is resolved from the
 // end date and number of events beforehand, so UNTIL is never used.
 export function rrule({ start, frequency, interval, count }) {

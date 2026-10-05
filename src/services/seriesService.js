@@ -1,13 +1,18 @@
 import { CALENDAR_NAME, WRITE_DELAY_MS } from "../config/defaults";
 import { toDateString } from "../lib/schedule";
 import { buildOccurrences, decodeConfig, keyFor, planSeries, toSeriesEvent } from "../lib/series";
-import { compareSubscriptions, describeFrequency, summarize } from "../lib/summary";
+import { compareSeries, describeFrequency, summarize } from "../lib/summary";
 import { normalize } from "../lib/validate";
 
 const CALENDAR_ID_KEY = "eventbetter.calendarId";
 // Lets us tell our calendar apart from a user-made one with the same name.
 const CALENDAR_DESCRIPTION =
-  "Created by the EventBetter app. Deleting this calendar deletes all its subscriptions.";
+  "Created by the EventBetter app. Deleting this calendar deletes all its recurring events.";
+// Calendars created before the rename carry the old wording; still ours.
+const KNOWN_DESCRIPTIONS = new Set([
+  CALENDAR_DESCRIPTION,
+  "Created by the EventBetter app. Deleting this calendar deletes all its subscriptions.",
+]);
 
 export class SeriesExistsError extends Error {
   constructor(name) {
@@ -42,7 +47,7 @@ const isGone = (e) => e?.status === 404 || e?.status === 410;
 // `api` is a calendarApi instance, `storage` an AsyncStorage-compatible object.
 // `canListCalendars` is true when a calendarList scope was granted, which lets
 // us find our calendar again after a reinstall.
-export function createSubscriptionService({
+export function createSeriesService({
   api,
   storage,
   canListCalendars = false,
@@ -57,7 +62,7 @@ export function createSubscriptionService({
     const match = (await api.listCalendarList()).find(
       (c) =>
         c.summary === CALENDAR_NAME &&
-        c.description === CALENDAR_DESCRIPTION &&
+        KNOWN_DESCRIPTIONS.has(c.description) &&
         c.accessRole === "owner",
     );
     if (!match) return null;
@@ -130,7 +135,7 @@ export function createSubscriptionService({
 
   // Edit: occurrence titles are all custom, so there's no safe in-place
   // update. Create the new series first and remove the old one only after
-  // that succeeds, so a failed edit never loses the subscription.
+  // that succeeds, so a failed edit never loses the recurring event.
   async function update(seriesId, input, options = {}) {
     const result = await create(input, { ...options, replacing: seriesId });
     try {
@@ -152,7 +157,7 @@ export function createSubscriptionService({
     }
   }
 
-  // Doesn't create the calendar: a new user simply has no subscriptions yet.
+  // Doesn't create the calendar: a new user simply has no recurring events yet.
   async function list() {
     const calendarId = await findOwnCalendar();
     if (!calendarId) return [];
@@ -162,37 +167,53 @@ export function createSubscriptionService({
     const today = now();
     return events
       .filter((e) => !e.recurringEventId && e.extendedProperties?.private?.ebKey)
-      .map((e) => toSubscription(e, today))
-      .sort(compareSubscriptions);
+      .map((e) => toSeries(e, today))
+      .sort(compareSeries);
+  }
+
+  // Deletes every recurring event EventBetter created, one series at a time.
+  // The calendar itself is kept: anything the user added to it by hand stays.
+  async function removeAll({ onProgress = () => {} } = {}) {
+    const all = await list();
+    onProgress({ done: 0, total: all.length });
+    for (let i = 0; i < all.length; i++) {
+      await remove(all[i].id);
+      onProgress({ done: i + 1, total: all.length });
+      if (i < all.length - 1) await sleep(WRITE_DELAY_MS);
+    }
+    return { deleted: all.length };
   }
 
   async function get(seriesId) {
     const calendarId = await findOwnCalendar();
     if (!calendarId) return null;
     const event = await api.getEvent(calendarId, seriesId);
-    return event && toSubscription(event, now());
+    return event && toSeries(event, now());
   }
 
-  return { ensureCalendar, findSeriesByKey, create, update, remove, list, get };
+  return { ensureCalendar, findSeriesByKey, create, update, remove, removeAll, list, get };
 }
 
 // A series we can't read the config of (hand-edited, or from a future
 // version) is still listed and deletable, just not editable.
-function toSubscription(event, today) {
+function toSeries(event, today) {
   const props = event.extendedProperties?.private ?? {};
   const base = { id: event.id, name: props.ebName || event.summary || "Untitled" };
   let config;
   try {
     config = normalize(decodeConfig(props.ebConfig));
   } catch {
-    return { ...base, config: null, editable: false, completed: false, next: null };
+    return { ...base, config: null, editable: false, completed: false, next: null, occurrenceCount: null };
   }
+  const items = buildOccurrences(config);
   return {
     ...base,
     config,
     editable: true,
     frequencyLabel: describeFrequency(config),
-    ...summarize(buildOccurrences(config), today),
+    // Every dated item in Calendar, including the optional start event.
+    occurrenceCount: items.length,
+    ...summarize(items, today),
   };
 }
 

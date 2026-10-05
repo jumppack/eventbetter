@@ -3,7 +3,7 @@ import { BannerAd, BannerAdSize } from "react-native-google-mobile-ads";
 
 import { BANNER_UNIT_ID, useAdsReady } from "./ads";
 
-// Takes no props on purpose: nothing about the user or their subscriptions
+// Takes no props on purpose: nothing about the user or their events
 // reaches the ad request, so there are no keywords or content URLs either.
 // Renders nothing until consent allows ads, or if no ad loads.
 export function Banner() {

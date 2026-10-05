@@ -12,7 +12,7 @@ import {
 } from "../api/auth";
 import { createCalendarApi } from "../api/calendarApi";
 import { reminders } from "../services/reminders";
-import { createSubscriptionService } from "../services/subscriptionService";
+import { createSeriesService } from "../services/seriesService";
 
 // status: "loading" -> "signedOut" | "needsCalendar" | "ready"
 const SessionContext = createContext(null);
@@ -23,7 +23,7 @@ export function useSession() {
 
 function buildService(account, canListCalendars) {
   const api = createCalendarApi({ getAccessToken: createTokenProvider(account) });
-  return createSubscriptionService({ api, storage: AsyncStorage, canListCalendars });
+  return createSeriesService({ api, storage: AsyncStorage, canListCalendars });
 }
 
 export function SessionProvider({ children }) {

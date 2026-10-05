@@ -4,12 +4,12 @@ import { AppState } from "react-native";
 import { reminders } from "../services/reminders";
 import { useSession } from "./SessionProvider";
 
-// The list screen loads subscriptions; add/edit/delete refresh them, and the
+// The list screen loads the recurring events; add/edit/delete refresh them, and the
 // edit screen reads from here instead of fetching again.
-const SubscriptionsContext = createContext(null);
+const SeriesContext = createContext(null);
 
-export function useSubscriptions() {
-  return useContext(SubscriptionsContext);
+export function useSeries() {
+  return useContext(SeriesContext);
 }
 
 // A new service means a new session (sign-out or another account), so the
@@ -17,7 +17,7 @@ export function useSubscriptions() {
 const sessionKeys = new WeakMap();
 let nextKey = 1;
 
-export function SubscriptionsProvider({ children }) {
+export function SeriesProvider({ children }) {
   const { service } = useSession();
   if (service && !sessionKeys.has(service)) sessionKeys.set(service, nextKey++);
   return (
@@ -57,5 +57,5 @@ function Store({ service, children }) {
   }, [refresh]);
 
   const value = useMemo(() => ({ ...state, refresh, service }), [state, refresh, service]);
-  return <SubscriptionsContext.Provider value={value}>{children}</SubscriptionsContext.Provider>;
+  return <SeriesContext.Provider value={value}>{children}</SeriesContext.Provider>;
 }

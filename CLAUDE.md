@@ -17,7 +17,7 @@ Example: "Tuff Gym membership", starting 2026-09-30, monthly, 12 events, produce
 
 Because it's a real recurring series, deleting any occurrence in Google Calendar offers "All events".
 
-A working prototype exists as a Google Apps Script web app. It has been fully ported and its source removed from the repo: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2), Index.html to `src/components/SubscriptionForm.js` (milestone 3), Styles.html to `src/components/theme.js` and `Glass.js` (milestone 6). The original is in git history before commit `3d11876`. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
+A working prototype exists as a Google Apps Script web app. It has been fully ported and its source removed from the repo: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/seriesService.js` (milestone 2), Index.html to `src/components/SeriesForm.js` (milestone 3), Styles.html to `src/components/theme.js` and `Glass.js` (milestone 6). The original files are still in git history. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
 
 ## Fixed decisions
 
@@ -36,6 +36,7 @@ A working prototype exists as a Google Apps Script web app. It has been fully po
 | Play Console | Personal developer account |
 | Domain | `jumppack.online` (owned). Hosts the homepage, privacy policy and `app-ads.txt` |
 | Source | Public GitHub repo, MIT license. Nothing secret is ever committed |
+| Terminology | What the user creates is a **recurring event** ("event" for short where context is clear); its dated items in Google Calendar are **occurrences**. Never "subscription" in the UI. In code, a recurring event is a "series" (`seriesService`, `SeriesForm`, `SeriesProvider`) |
 
 When a library's API or a Google policy described here seems out of date, check the current official docs and tell me what changed before building on it.
 
@@ -47,7 +48,7 @@ Put this in `src/lib/` as pure functions with no React or network imports, fully
 
 | Placeholder | Meaning | Example |
 |---|---|---|
-| `{name}` | Subscription name | Tuff Gym membership |
+| `{name}` | Recurring event name (the Title field) | Tuff Gym membership |
 | `{count}` | Occurrence number | 1, 2, 3 |
 | `{ord}` | Occurrence number as an ordinal | 1st, 2nd, 3rd (11th, 12th, 13th, 21st, 22nd…) |
 | `{elapsed}` | count × repeat-every | quarterly: 3, 6, 9 |
@@ -69,7 +70,7 @@ Unknown placeholders are left as literal text. Default template: `{name}: {ord} 
 - Yearly starting Feb 29: add `BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1`.
 - Write a test proving the occurrence dates Google generates (via the instances endpoint) match `occurrences()` for a series starting on the 31st. If Google doesn't honor `BYSETPOS` as expected, stop and tell me. Verified 2026-09-30 on a real account: monthly from Jan 31 and yearly from Feb 29 both match. `calendarApi.live.test.js` (`npm run test:live`) is the repeatable version, and `create()` also refuses any series whose dates differ from the plan.
 
-### Creating a subscription
+### Creating a recurring event
 
 1. Validate and normalize the input. Empty fields fall back to defaults.
 2. Build the list of titles and descriptions for every occurrence.
@@ -91,8 +92,8 @@ Series lookup uses `events.list` with `privateExtendedProperty` and filters out 
 ## Screens
 
 1. **Sign in:** app name, a one-line explanation, and a "Continue with Google" button. After sign-in, explain in plain words why Calendar access is needed before the system permission prompt appears.
-2. **Subscriptions list (home):** every EventBetter series, showing name, frequency ("Every 3 months"), progress ("5 of 12") and the next occurrence date. Pull to refresh, an empty state that explains the app, and a floating add button. A banner ad is anchored at the bottom of this screen only.
-3. **Add / edit subscription:** fields and help text match the prototype's Index.html (now ported verbatim into `src/components/SubscriptionForm.js`):
+2. **Recurring events list (home):** every EventBetter series, showing name, frequency ("Every 3 months"), progress ("5 of 12 occurrences") and the next occurrence date, with edit and delete icons on each card (tapping the card opens edit; delete always confirms with the occurrence count). Pull to refresh, an empty state that explains the app, and a floating add button. A banner ad is anchored at the bottom of this screen only.
+3. **Add / edit recurring event:** fields and help text based on the prototype's Index.html, now in `src/components/SeriesForm.js`:
    - Title
    - Start date (native date picker, defaults to today)
    - Frequency
@@ -100,7 +101,7 @@ Series lookup uses `events.list` with `privateExtendedProperty` and filters out 
    - End date (optional)
    - Number of events to create (default 12)
    - Title template, with the collapsible placeholder guide
-   - Start event title (optional)
+   - Start date title (optional)
 
    There's no calendar field, because the app always uses its own calendar. Add a live preview of the first three generated titles and dates as the user types. Edit mode shows a Delete button.
 4. **Settings:** signed-in account and sign out, "Manage ad privacy choices" (the consent SDK's privacy options form), links to the privacy policy and homepage, and "Disconnect Google account" (revoke access and clear local state), plus the app version and open-source licenses.
@@ -112,9 +113,9 @@ Show clear progress while a series is being created, because patching many occur
 - **Calendar reminders** are set on the series when it's created (see above). Nothing more to do.
 - **Local notifications** use `expo-notifications`:
   - Schedule one notification per upcoming occurrence at 9:00 AM local time the day before, with body text like "Tomorrow: Tuff Gym membership: 3rd month over"
-  - Only schedule the next 2 occurrences per subscription, with at most 50 in total
+  - Only schedule the next 2 occurrences per recurring event, with at most 50 in total
   - Reschedule everything from Calendar data on app launch, on returning to the foreground, and after any create, edit or delete. That way a reinstall or a new phone recovers automatically
-  - Ask for notification permission (Android 13+) at a sensible moment, such as after the first subscription is created, not on launch
+  - Ask for notification permission (Android 13+) at a sensible moment, such as after the first recurring event is created, not on launch
   - Store the mapping of scheduled notifications in AsyncStorage
 
 ## Ads (AdMob)
@@ -142,7 +143,7 @@ src/
   app/                  Expo Router screens (view layer)
   components/           reusable UI (glass card, form fields, list item, banner slot)
   lib/                  pure logic: template.js, schedule.js, rrule.js, validate.js (+ tests)
-  services/             subscriptionService.js (orchestration), notificationService.js
+  services/             seriesService.js (orchestration), notificationService.js
   api/                  calendarApi.js (the only file that calls the Calendar REST API), auth.js
   ads/                  ads.js, consent.js (isolated, see Ads)
   config/               constants, defaults, ad unit IDs per environment
@@ -193,7 +194,7 @@ Generate simple static pages:
 Work in this order. Stop at the end of each milestone, summarize what was done, and wait for my go-ahead.
 
 1. Scaffold the Expo project, add the folder structure, and port `src/lib/` with tests. No UI yet.
-2. Sign-in, Calendar authorization, create or find the EventBetter calendar, and create a subscription end to end (a minimal form is fine). Includes the `BYSETPOS` verification test against the real API.
+2. Sign-in, Calendar authorization, create or find the EventBetter calendar, and create a recurring event end to end (a minimal form is fine). Includes the `BYSETPOS` verification test against the real API.
 3. List screen, delete, edit (recreate), the full add/edit form with live preview, and settings.
 4. Reminders: Calendar reminder on the series, plus local notifications with rescheduling.
 5. Ads and consent.
@@ -208,15 +209,15 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.
 - `rrule` (npm, dev dependency only) powers `rrule.expansion.test.js`, which expands every generated RRULE for ~16,000 series (every start day in 2027 and 2028, all frequencies, several intervals, with and without a start event) and checks the dates match `buildOccurrences()`. It's an offline safety net; the live Google instances test remains authoritative.
 - India is a primary market. `npm test` runs every suite in four time zones (`jest.config.js` projects): Asia/Kolkata (IST, +05:30, where local midnight is the previous UTC day), UTC, America/Los_Angeles and Pacific/Auckland. `jest/timezone-environment.js` sets `TZ` on the real `process.env`, because test files only see a sandboxed copy. `timezone.test.js` asserts each zone is really applied. Never use `toISOString()` or `new Date("YYYY-MM-DD")` for calendar dates.
-- Form UI (pulled forward from milestone 3 at the user's request): `src/components/SubscriptionForm.js` is shared by add and edit, with fields and help text copied verbatim from `Index.html` and a live preview of the first 3 titles. `@react-native-community/datetimepicker` (approved) provides the native Android date dialog through `DateTimePickerAndroid.open`; the optional End date has a "Clear" button. Frequency uses a JS bottom sheet, not a native picker.
+- Form UI (pulled forward from milestone 3 at the user's request): `src/components/SeriesForm.js` is shared by add and edit, with fields and help text based on `Index.html` and a live preview of the first 3 titles. "Repeats every [n] [unit]" is one inline row (unit pluralizes with n; units ordered day, week, month, year; monthly stays the default). `@react-native-community/datetimepicker` (approved) provides the native Android date dialog through `DateTimePickerAndroid.open`; the optional End date has a "Clear" button. Frequency uses a JS bottom sheet, not a native picker.
 - Glass look without new packages: `src/components/theme.js` holds light and dark tokens based on the prototype's. `Glass.js` draws the background and blobs with RN gradients and uses `boxShadow`, both of which need the New Architecture. In RN 0.86 the gradient prop is `experimental_backgroundImage`; plain `backgroundImage` is silently ignored. Real backdrop blur (`expo-blur`) is still milestone 6.
 - Contrast: every text/background pair meets WCAG AA in both themes (4.5:1 text and placeholders, 3:1 field borders). `theme.contrast.test.js` composites the translucent layers over the background's lightest and darkest spots and enforces this, so check it whenever tokens change. Use `link` (not `accent`) for text-colored accents, `fieldBorder` for inputs, and `buttonFrom`/`buttonTo` for the primary button.
-- Edit order (milestone 3): `update()` creates the new series first (the old one doesn't count as a duplicate), then deletes the old one, so a failed edit never loses the subscription. If the old one can't be removed, it throws `OldSeriesNotRemovedError` and both stay listed. Deletes treat 404/410 as already gone.
+- Edit order (milestone 3): `update()` creates the new series first (the old one doesn't count as a duplicate), then deletes the old one, so a failed edit never loses the recurring event. If the old one can't be removed, it throws `OldSeriesNotRemovedError` and both stay listed. Deletes treat 404/410 as already gone.
 - List progress (`src/lib/summary.js`): "5 of 12" counts numbered occurrences dated today or earlier; the start event isn't counted but can be "Next". Dates compare as local YYYY-MM-DD strings. Series whose `ebConfig` can't be read are still listed and deletable, but not editable. `list()` never creates the calendar.
-- `SubscriptionsProvider` caches the list for the edit screen and remounts per session so another account's data never shows.
+- `SeriesProvider` caches the list for the edit screen and remounts per session so another account's data never shows.
 - Open-source licenses: `npm run licenses` regenerates `src/config/licenses.json` from the Android bundle's source map, so only JS that actually ships is listed, plus a hand-kept list of native Android libraries in `scripts/generate-licenses.js`. Rerun after adding or upgrading a dependency.
 - Settings' "Manage ad privacy choices" arrives with the consent SDK in milestone 5. The privacy policy and homepage links point at `src/config/links.js`; the pages themselves come in milestone 7.
-- Reminders (milestone 4): `src/lib/reminders.js` plans the local notifications (9:00 AM local the day before, next 2 per subscription, 50 max, soonest first). `src/services/notificationService.js` diffs the plan against a key -> notification mapping in AsyncStorage and the OS's scheduled list, so unchanged reminders aren't rescheduled and fired or OS-cleared ones roll forward. Syncs run one at a time. `src/services/reminders.js` is the app-wide instance. Every list refresh syncs (launch, foreground via AppState, after create/edit/delete); sign-out and disconnect cancel everything. Permission is requested once, after the first subscription is created; Settings shows the state and links to system settings if the user said no permanently.
+- Reminders (milestone 4): `src/lib/reminders.js` plans the local notifications (9:00 AM local the day before, next 2 per recurring event, 50 max, soonest first). `src/services/notificationService.js` diffs the plan against a key -> notification mapping in AsyncStorage and the OS's scheduled list, so unchanged reminders aren't rescheduled and fired or OS-cleared ones roll forward. Syncs run one at a time. `src/services/reminders.js` is the app-wide instance. Every list refresh syncs (launch, foreground via AppState, after create/edit/delete); sign-out and disconnect cancel everything. Permission is requested once, after the first recurring event is created; Settings shows the state and links to system settings if the user said no permanently.
 - No exact alarms: we don't request `SCHEDULE_EXACT_ALARM`/`USE_EXACT_ALARM` (Play restricts them to alarm and calendar apps), so Android may deliver reminders a few minutes late. `expo-notifications` adds only `POST_NOTIFICATIONS` and `RECEIVE_BOOT_COMPLETED` (reminders survive reboots). It needs a 96x96 white notification icon before launch (milestone 6/7); until then Android uses the app icon.
 - Ads (milestone 5): all ad code is in `src/ads/` (`ads.js`, `consent.js`, `Banner.js`); `src/components/BannerSlot.js` only lays it out on the list screen. `ads.isolation.test.js` fails if anything in `src/ads` imports non-ad code (only `react`, `react-native`, `expo-constants`, the ads SDK and `src/config/admob.json` are allowed), if the ads SDK is imported outside `src/ads`, or if any targeting/keywords/content URLs appear. `startAds()` runs the UMP consent flow at launch and initializes the SDK only if `canRequestAds`; measurement is delayed until then (`delayAppMeasurementInit`). Settings shows "Manage ad privacy choices" when the consent SDK says the region requires it.
 - AdMob IDs: `src/config/admob.json` (public, committed). `app.config.js` extends `app.json` and picks the real app ID only when `EAS_BUILD_PROFILE=production` (it refuses to build production without one); every other build uses Google's test app ID, and the banner uses `TestIds.ADAPTIVE_BANNER` unless it's a non-dev production build. The Google Mobile Ads SDK adds the `AD_ID` permission, so the Play data safety form must declare the advertising ID.
@@ -224,6 +225,8 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - Blur (milestone 6): `Background` renders the gradient and blobs inside an `expo-blur` `BlurTargetView`; screen content sits outside it (otherwise cards would blur themselves), and `GlassCard` puts a `BlurView` pointed at that target behind its content, topped with the same `glass` tint as before so AA contrast holds whether or not blur renders. `blurMethod="dimezisBlurViewSdk31Plus"` uses RenderNode on Android 12+ and falls back to plain translucency on older devices. `GLASS_BLUR` in `Glass.js` turns blur off everywhere if it's slow on mid-range phones.
 - Icons: `python3 scripts/generate-icons.py` (Pillow) draws every icon asset from shapes: the full icon, the adaptive icon background/foreground (glyph kept inside the 66% safe circle), the Android 13 monochrome icon, the splash tile and the 96x96 white notification icon. `expo-splash-screen` shows the tile on `#e3ecff` (light) or `#0d1022` (dark). The loading screen and the stack's `contentStyle` use the theme background so there's no white flash.
 - Website hosting: the user prefers Cloudflare (`jumppack.online` DNS is there). Recommended Cloudflare Pages over EC2: AWS's free plan for new accounts (since 2025-07-15) is credit-based and ends after 6 months, and EC2 needs server upkeep. Awaiting the user's final choice before writing deploy config.
+- Terminology change (after milestone 6): user-facing text and code were renamed from "subscription" to recurring event / series. Calendar data (`ebKey`, `ebName`, `ebConfig`) and AsyncStorage keys are unchanged, so existing events keep working. New calendars get the reworded description; `KNOWN_DESCRIPTIONS` in `seriesService.js` still recognizes the old one.
+- Danger zone (Settings): "Delete all recurring events" (`removeAll()`, one series at a time with progress; the EventBetter calendar and anything the user added to it are kept) and "Disconnect Google account", which offers to delete the events first. Both confirm with the actual counts. Icons come from `@expo/vector-icons` (MaterialIcons, approved); `IconButton` takes an `icon` name.
 - `validate()` returns `{ sub, errors, valid }` with per-field errors for the form. `normalize()` throws a `ValidationError` carrying the same errors.
 
 ## Working style

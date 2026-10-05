@@ -1,6 +1,7 @@
 export const CALENDAR_NAME = "EventBetter";
 
-export const FREQUENCIES = ["monthly", "weekly", "yearly", "daily"];
+// Display order: shortest to longest period. The default (DEFAULTS.frequency) is monthly.
+export const FREQUENCIES = ["daily", "weekly", "monthly", "yearly"];
 
 export const UNITS = {
   daily: "day",
@@ -34,5 +35,5 @@ export const MAX_PROPERTY_VALUE_LENGTH = 1024;
 // Local notifications: 9:00 AM local time the day before each occurrence,
 // for the next few occurrences only (Android caps pending alarms per app).
 export const REMINDER_HOUR = 9;
-export const REMINDERS_PER_SUBSCRIPTION = 2;
+export const REMINDERS_PER_SERIES = 2;
 export const MAX_REMINDERS = 50;

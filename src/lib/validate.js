@@ -6,7 +6,7 @@ const isBlank = (v) =>
 
 const toInt = (v) => (typeof v === "number" ? v : Number(String(v).trim()));
 
-// Accepts raw form values (strings) and returns a normalized subscription plus
+// Accepts raw form values (strings) and returns the normalized event settings plus
 // per-field errors. Empty fields fall back to defaults instead of overriding them.
 export function validate(input) {
   const pick = (key) => (isBlank(input[key]) ? DEFAULTS[key] : input[key]);

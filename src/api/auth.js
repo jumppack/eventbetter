@@ -7,7 +7,7 @@ const ACCOUNT_KEY = "eventbetter.account";
 
 export class CalendarAccessDeniedError extends Error {
   constructor() {
-    super("EventBetter needs Calendar access to create subscriptions.");
+    super("EventBetter needs Calendar access to create recurring events.");
     this.name = "CalendarAccessDeniedError";
   }
 }

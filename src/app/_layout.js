@@ -5,7 +5,7 @@ import { ActivityIndicator, View } from "react-native";
 import { startAds } from "../ads/ads";
 import { Background } from "../components/Glass";
 import { SessionProvider, useSession } from "../components/SessionProvider";
-import { SubscriptionsProvider } from "../components/SubscriptionsProvider";
+import { SeriesProvider } from "../components/SeriesProvider";
 import { useTheme } from "../components/theme";
 
 function RootStack() {
@@ -52,9 +52,9 @@ export default function RootLayout() {
 
   return (
     <SessionProvider>
-      <SubscriptionsProvider>
+      <SeriesProvider>
         <RootStack />
-      </SubscriptionsProvider>
+      </SeriesProvider>
     </SessionProvider>
   );
 }

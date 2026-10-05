@@ -1,26 +1,19 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { confirm, confirmDeleteSeries } from "../../components/confirm";
 import { GlassCard, Screen, SecondaryButton, StatusBox, TopBar } from "../../components/Glass";
-import { progressText, SubscriptionForm, toFormValues } from "../../components/SubscriptionForm";
-import { useSubscriptions } from "../../components/SubscriptionsProvider";
+import { progressText, SeriesForm, toFormValues } from "../../components/SeriesForm";
+import { useSeries } from "../../components/SeriesProvider";
 import { useBlockBack } from "../../components/useBlockBack";
 import { useTheme } from "../../components/theme";
 
-const confirm = (title, message, action, destructive = false) =>
-  new Promise((resolve) =>
-    Alert.alert(title, message, [
-      { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
-      { text: action, style: destructive ? "destructive" : "default", onPress: () => resolve(true) },
-    ], { cancelable: true, onDismiss: () => resolve(false) }),
-  );
-
-export default function EditSubscription() {
+export default function EditSeries() {
   const t = useTheme();
   const { id } = useLocalSearchParams();
-  const { items, service, refresh } = useSubscriptions();
-  const [subscription, setSubscription] = useState(() => items?.find((s) => s.id === id));
+  const { items, service, refresh } = useSeries();
+  const [series, setSeries] = useState(() => items?.find((s) => s.id === id));
   const [loadError, setLoadError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
@@ -28,18 +21,18 @@ export default function EditSubscription() {
 
   // Opened without the list loaded (e.g. after a reload): fetch it directly.
   useEffect(() => {
-    if (subscription || !service) return;
+    if (series || !service) return;
     service
       .get(id)
-      .then((s) => (s ? setSubscription(s) : setLoadError(new Error("This subscription no longer exists."))))
+      .then((s) => (s ? setSeries(s) : setLoadError(new Error("This recurring event no longer exists."))))
       .catch(setLoadError);
-  }, [id, service, subscription]);
+  }, [id, service, series]);
 
   async function onSave(form) {
-    const count = subscription.total;
+    const count = series.occurrenceCount;
     const ok = await confirm(
-      "Replace this subscription?",
-      `EventBetter will create the updated events in your calendar, then delete the current ${count} events. Occurrence titles are all custom, so they can't be changed in place.`,
+      "Replace this recurring event?",
+      `EventBetter will create the updated occurrences in your calendar, then delete the current ${count}. Every occurrence has its own title, so they can't be changed in place.`,
       "Replace",
     );
     if (!ok) return;
@@ -47,7 +40,7 @@ export default function EditSubscription() {
     setBusy(true);
     setStatus(null);
     try {
-      await service.update(subscription.id, form, {
+      await service.update(series.id, form, {
         onProgress: (p) => setStatus({ text: progressText(p), tone: "normal" }),
       });
       await refresh();
@@ -60,18 +53,12 @@ export default function EditSubscription() {
   }
 
   async function onDelete() {
-    const ok = await confirm(
-      `Delete "${subscription.name}"?`,
-      "This removes all of its events from your EventBetter calendar. It can't be undone.",
-      "Delete",
-      true,
-    );
-    if (!ok) return;
+    if (!(await confirmDeleteSeries(series))) return;
 
     setBusy(true);
     setStatus({ text: "Deleting…", tone: "normal" });
     try {
-      await service.remove(subscription.id);
+      await service.remove(series.id);
       await refresh();
       router.back();
     } catch (e) {
@@ -82,17 +69,17 @@ export default function EditSubscription() {
 
   return (
     <Screen>
-      <TopBar title="Edit subscription" onBack={busy ? undefined : () => router.back()} />
+      <TopBar title="Edit recurring event" onBack={busy ? undefined : () => router.back()} />
       <KeyboardAvoidingView style={styles.flex} behavior="height">
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {loadError ? <StatusBox tone="error">{loadError.message}</StatusBox> : null}
-          {!subscription && !loadError ? <Text style={[styles.muted, { color: t.muted }]}>Loading…</Text> : null}
+          {!series && !loadError ? <Text style={[styles.muted, { color: t.muted }]}>Loading…</Text> : null}
 
-          {subscription ? (
+          {series ? (
             <GlassCard>
-              {subscription.editable ? (
-                <SubscriptionForm
-                  initial={toFormValues(subscription.config)}
+              {series.editable ? (
+                <SeriesForm
+                  initial={toFormValues(series.config)}
                   submitLabel="Save changes"
                   onSubmit={onSave}
                   busy={busy}
@@ -100,9 +87,9 @@ export default function EditSubscription() {
                 />
               ) : (
                 <>
-                  <Text style={[styles.title, { color: t.text }]}>{subscription.name}</Text>
+                  <Text style={[styles.title, { color: t.text }]}>{series.name}</Text>
                   <Text style={[styles.muted, { color: t.muted }]}>
-                    This subscription's saved settings can't be read, so it can't be edited. You can
+                    This event's saved settings can't be read, so it can't be edited. You can
                     delete it and add it again.
                   </Text>
                   <StatusBox tone={status?.tone}>{status?.text}</StatusBox>
@@ -110,7 +97,7 @@ export default function EditSubscription() {
               )}
               <View style={styles.delete}>
                 <SecondaryButton
-                  title="Delete subscription"
+                  title="Delete recurring event"
                   color={t.danger}
                   onPress={onDelete}
                   disabled={busy}

@@ -1,3 +1,4 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { BlurTargetView, BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
 import { createContext, useContext, useRef } from "react";
@@ -218,15 +219,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  fabGlyph: { color: "#fff", fontSize: 32, lineHeight: 36, fontWeight: "400" },
 });
 
-// Screen header: optional back button, title, optional right-side action.
+// Screen header: optional back button, title, optional right-side actions.
 export function TopBar({ title, onBack, right }) {
   const t = useTheme();
   return (
     <View style={styles.topBar}>
-      {onBack ? <IconButton glyph="‹" label="Back" onPress={onBack} size={30} /> : null}
+      {onBack ? <IconButton icon="arrow-back" label="Back" onPress={onBack} /> : null}
       <Text style={[styles.topBarTitle, { color: t.text }]} numberOfLines={1} accessibilityRole="header">
         {title}
       </Text>
@@ -235,20 +235,26 @@ export function TopBar({ title, onBack, right }) {
   );
 }
 
-export function IconButton({ glyph, label, onPress, size = 22 }) {
+// 48dp round button with a Material icon. `plain` drops the glass fill, for
+// icons sitting inside a card.
+export function IconButton({ icon, label, onPress, color, disabled, plain }) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      hitSlop={6}
+      disabled={disabled}
+      hitSlop={4}
       style={({ pressed }) => [
         styles.iconButton,
-        { backgroundColor: pressed ? t.fieldFocus : t.field, borderColor: t.border },
+        plain
+          ? { borderColor: "transparent", backgroundColor: pressed ? t.field : "transparent" }
+          : { backgroundColor: pressed ? t.fieldFocus : t.field, borderColor: t.border },
+        disabled && { opacity: 0.4 },
       ]}
     >
-      <Text style={{ color: t.text, fontSize: size, lineHeight: size + 4 }}>{glyph}</Text>
+      <MaterialIcons name={icon} size={22} color={color ?? t.text} />
     </Pressable>
   );
 }
@@ -271,7 +277,7 @@ export function Fab({ label, onPress, bottom = 24 }) {
         },
       ]}
     >
-      <Text style={styles.fabGlyph}>+</Text>
+      <MaterialIcons name="add" size={30} color="#fff" />
     </Pressable>
   );
 }

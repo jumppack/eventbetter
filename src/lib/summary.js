@@ -24,7 +24,7 @@ export function summarize(items, today) {
 }
 
 // Upcoming first (soonest at the top), completed last, then by name.
-export function compareSubscriptions(a, b) {
+export function compareSeries(a, b) {
   if (a.completed !== b.completed) return a.completed ? 1 : -1;
   const aNext = a.next ? toDateString(a.next.date) : "";
   const bNext = b.next ? toDateString(b.next.date) : "";

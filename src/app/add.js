@@ -3,15 +3,15 @@ import { useState } from "react";
 import { KeyboardAvoidingView, ScrollView, StyleSheet, Text } from "react-native";
 
 import { GlassCard, Screen, TopBar } from "../components/Glass";
-import { emptyForm, progressText, SubscriptionForm } from "../components/SubscriptionForm";
-import { useSubscriptions } from "../components/SubscriptionsProvider";
+import { emptyForm, progressText, SeriesForm } from "../components/SeriesForm";
+import { useSeries } from "../components/SeriesProvider";
 import { useBlockBack } from "../components/useBlockBack";
 import { reminders } from "../services/reminders";
 import { useTheme } from "../components/theme";
 
-export default function AddSubscription() {
+export default function AddSeries() {
   const t = useTheme();
-  const { service, refresh } = useSubscriptions();
+  const { service, refresh } = useSeries();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
   useBlockBack(busy);
@@ -21,7 +21,7 @@ export default function AddSubscription() {
     setStatus(null);
     try {
       await service.create(form, { onProgress: (p) => setStatus({ text: progressText(p), tone: "normal" }) });
-      // The first subscription is the natural moment to offer reminders.
+      // The first recurring event is the natural moment to offer reminders.
       await reminders.askOnce().catch(() => {});
       await refresh();
       router.back();
@@ -33,14 +33,14 @@ export default function AddSubscription() {
 
   return (
     <Screen>
-      <TopBar title="Add subscription" onBack={busy ? undefined : () => router.back()} />
+      <TopBar title="Add recurring event" onBack={busy ? undefined : () => router.back()} />
       <KeyboardAvoidingView style={styles.flex} behavior="height">
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <GlassCard>
             <Text style={[styles.subtitle, { color: t.muted }]}>
-              Creates numbered events so you can see how long you've been subscribed.
+              Creates a recurring Google Calendar event where every occurrence gets its own numbered title, like "3rd month over".
             </Text>
-            <SubscriptionForm
+            <SeriesForm
               initial={emptyForm()}
               submitLabel="Create events"
               onSubmit={onSubmit}

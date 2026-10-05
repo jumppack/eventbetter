@@ -91,7 +91,7 @@ export function encodeConfig(sub) {
 export function decodeConfig(json) {
   const { v, ...config } = JSON.parse(json);
   if (v !== CONFIG_VERSION) {
-    throw new Error(`Unsupported subscription config version: ${v}`);
+    throw new Error(`Unsupported event config version: ${v}`);
   }
   return config;
 }
@@ -99,7 +99,7 @@ export function decodeConfig(json) {
 export class PropertyTooLargeError extends Error {
   constructor(key, length) {
     super(
-      `This subscription's details are too long to save (${length} of ${MAX_PROPERTY_VALUE_LENGTH} characters). Shorten the title or templates.`,
+      `This event's details are too long to save (${length} of ${MAX_PROPERTY_VALUE_LENGTH} characters). Shorten the title or templates.`,
     );
     this.name = "PropertyTooLargeError";
     this.key = key;

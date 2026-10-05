@@ -1,6 +1,8 @@
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { useState } from "react";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { parseDate, toDateString } from "../lib/schedule";
 import { radius, useTheme } from "./theme";
@@ -122,27 +124,44 @@ export function DateField({ value, onChange, placeholder = "Select a date", clea
       <Text style={[styles.value, { color: value ? t.text : t.placeholder }]}>
         {value ? formatDate(value) : placeholder}
       </Text>
-      <Text style={[styles.icon, { color: t.muted }]}>📅</Text>
+      <MaterialIcons name="event" size={22} color={t.muted} />
     </Pressable>
   );
 }
 
 // A dropdown that opens a sheet of options, like the prototype's <select>.
-export function SelectField({ value, options, onChange, title }) {
+export function SelectField({ value, options, onChange, title, accessibilityLabel }) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const fieldStyle = useFieldStyle(open);
   const current = options.find((o) => o.value === value);
 
   return (
     <>
-      <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={[fieldStyle, styles.row]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        onPress={() => setOpen(true)}
+        style={[fieldStyle, styles.row]}
+      >
         <Text style={[styles.value, { color: t.text }]}>{current?.label}</Text>
-        <Text style={[styles.chevron, { color: t.muted }]}>⌄</Text>
+        <MaterialIcons name="expand-more" size={24} color={t.muted} />
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={[styles.scrim, { backgroundColor: t.scrim }]} onPress={() => setOpen(false)}>
+      <Modal
+        visible={open}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        navigationBarTranslucent
+        onRequestClose={() => setOpen(false)}
+      >
+        {/* Drawn edge to edge, so keep the sheet clear of the navigation bar. */}
+        <Pressable
+          style={[styles.scrim, { backgroundColor: t.scrim, paddingBottom: insets.bottom + 16 }]}
+          onPress={() => setOpen(false)}
+        >
           <View style={[styles.sheet, { backgroundColor: t.sheet, borderColor: t.border }]}>
             <Text style={[styles.sheetTitle, { color: t.muted }]}>{title}</Text>
             {options.map((o) => {
@@ -159,7 +178,7 @@ export function SelectField({ value, options, onChange, title }) {
                   style={({ pressed }) => [styles.option, pressed && { backgroundColor: t.field }]}
                 >
                   <Text style={[styles.optionText, { color: selected ? t.link : t.text }]}>{o.label}</Text>
-                  {selected ? <Text style={{ color: t.link, fontSize: 16 }}>✓</Text> : null}
+                  {selected ? <MaterialIcons name="check" size={22} color={t.link} /> : null}
                 </Pressable>
               );
             })}
@@ -190,8 +209,6 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   value: { fontSize: 15 },
-  icon: { fontSize: 16 },
-  chevron: { fontSize: 18, marginTop: -6 },
   scrim: { flex: 1, justifyContent: "flex-end", padding: 16 },
   sheet: { borderRadius: radius.card, borderWidth: 1, paddingVertical: 8, overflow: "hidden" },
   sheetTitle: { fontSize: 13, fontWeight: "600", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },

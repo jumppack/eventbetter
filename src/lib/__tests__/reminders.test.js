@@ -55,13 +55,13 @@ describe("planReminders", () => {
     expect(planReminders([withStart], at(2026, 10, 4))[0].body).toBe("Tomorrow: Gym started");
   });
 
-  it("schedules nothing for completed or uneditable subscriptions", () => {
+  it("schedules nothing for completed or uneditable series", () => {
     const done = sub("old", { name: "Old", start: "2020-01-01", maxCount: "3" });
     const unreadable = { id: "x", name: "X", editable: false, config: null };
     expect(planReminders([done, unreadable], at(2026, 10, 4))).toEqual([]);
   });
 
-  it("orders across subscriptions by time", () => {
+  it("orders across series by time", () => {
     const weekly = sub("w", { name: "Yoga", start: "2026-10-01", frequency: "weekly" });
     const plan = planReminders([gym, weekly], at(2026, 10, 4));
     expect(plan.map((r) => r.key)).toEqual(["w|2026-10-08", "w|2026-10-15", "gym|2026-10-30", "gym|2026-11-30"]);

@@ -4,7 +4,7 @@ const MAPPING_KEY = "eventbetter.notifications";
 const ASKED_KEY = "eventbetter.notificationsAsked";
 export const CHANNEL_ID = "reminders";
 
-// Keeps the device's scheduled notifications in line with the subscriptions
+// Keeps the device's scheduled notifications in line with the recurring events
 // in Calendar. Runs on launch, on returning to the foreground and after every
 // create, edit or delete, so a reinstall or new phone recovers by itself.
 // The mapping of planned reminder key -> scheduled notification lives in
@@ -16,7 +16,7 @@ export function createNotificationService({ notifications, storage, now = () => 
   async function ensureChannel() {
     if (channelReady) return;
     await notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "Subscription reminders",
+      name: "Event reminders",
       description: "The day before each numbered event, at 9:00 AM",
       importance: notifications.AndroidImportance.DEFAULT,
     });
@@ -31,7 +31,7 @@ export function createNotificationService({ notifications, storage, now = () => 
     }
   }
 
-  async function sync(subscriptions) {
+  async function sync(seriesList) {
     const { granted } = await notifications.getPermissionsAsync();
     if (!granted) return { scheduled: 0, permitted: false };
 
@@ -40,7 +40,7 @@ export function createNotificationService({ notifications, storage, now = () => 
     // Fired or OS-cleared notifications drop out of the scheduled list.
     const live = new Set((await notifications.getAllScheduledNotificationsAsync()).map((n) => n.identifier));
     const wanted = new Map(
-      planReminders(subscriptions, now()).map((r) => [r.key, { ...r, sig: `${r.fireAt.getTime()}|${r.title}|${r.body}` }]),
+      planReminders(seriesList, now()).map((r) => [r.key, { ...r, sig: `${r.fireAt.getTime()}|${r.title}|${r.body}` }]),
     );
 
     const next = {};
@@ -80,12 +80,12 @@ export function createNotificationService({ notifications, storage, now = () => 
   }
 
   return {
-    sync: (subscriptions) => queue(() => sync(subscriptions)),
+    sync: (seriesList) => queue(() => sync(seriesList)),
     clear: () => queue(clear),
 
     getPermission: () => notifications.getPermissionsAsync(),
 
-    // Asked once, after the first subscription is created, not on launch.
+    // Asked once, after the first recurring event is created, not on launch.
     async askOnce() {
       if (await storage.getItem(ASKED_KEY)) return null;
       await storage.setItem(ASKED_KEY, "1");

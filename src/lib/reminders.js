@@ -1,4 +1,4 @@
-import { MAX_REMINDERS, REMINDER_HOUR, REMINDERS_PER_SUBSCRIPTION } from "../config/defaults";
+import { MAX_REMINDERS, REMINDER_HOUR, REMINDERS_PER_SERIES } from "../config/defaults";
 import { toDateString } from "./schedule";
 import { buildOccurrences } from "./series";
 
@@ -14,16 +14,16 @@ export function reminderTime(occurrenceDate) {
 }
 
 // Which local notifications should exist right now: the next few upcoming
-// occurrences per subscription, soonest first, capped overall. `key` is
+// occurrences per recurring event, soonest first, capped overall. `key` is
 // stable across runs so unchanged reminders aren't rescheduled.
-export function planReminders(subscriptions, now) {
+export function planReminders(seriesList, now) {
   const all = [];
-  for (const sub of subscriptions) {
+  for (const sub of seriesList) {
     if (!sub.editable || !sub.config) continue;
     const upcoming = buildOccurrences(sub.config)
       .map((item) => ({ item, fireAt: reminderTime(item.date) }))
       .filter(({ fireAt }) => fireAt > now)
-      .slice(0, REMINDERS_PER_SUBSCRIPTION);
+      .slice(0, REMINDERS_PER_SERIES);
 
     for (const { item, fireAt } of upcoming) {
       all.push({

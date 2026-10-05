@@ -36,7 +36,7 @@ export default function CalendarAccess() {
         <Text style={[styles.title, { color: t.text }]}>Calendar access</Text>
         <View style={styles.body}>
           <Text style={text}>
-            EventBetter adds your subscriptions to its own calendar, named "EventBetter", in your
+            EventBetter adds your recurring events to its own calendar, named "EventBetter", in your
             Google Calendar. It can only create and change events in that calendar, never in your
             other calendars.
           </Text>

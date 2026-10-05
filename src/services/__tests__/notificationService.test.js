@@ -46,7 +46,7 @@ function setup(options) {
 const bodies = (n) => [...n.scheduled.values()].map((r) => r.content.body).sort();
 
 describe("sync", () => {
-  it("schedules the next two reminders per subscription on the reminders channel", async () => {
+  it("schedules the next two reminders per series on the reminders channel", async () => {
     const { notifications, service } = setup();
     expect(await service.sync([gym, yoga])).toEqual({ scheduled: 4, permitted: true });
 
@@ -73,7 +73,7 @@ describe("sync", () => {
     expect(notifications.scheduled.size).toBe(2);
   });
 
-  it("cancels reminders for a deleted subscription", async () => {
+  it("cancels reminders for a deleted series", async () => {
     const { notifications, service } = setup();
     await service.sync([gym, yoga]);
     await service.sync([yoga]);

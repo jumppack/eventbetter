@@ -17,7 +17,7 @@ Example: "Tuff Gym membership", starting 2026-09-30, monthly, 12 events, produce
 
 Because it's a real recurring series, deleting any occurrence in Google Calendar offers "All events".
 
-A working prototype exists as a Google Apps Script web app. Its remaining source is in `reference/apps-script/` (Styles.html). The other files were deleted once ported: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2), Index.html to `src/components/SubscriptionForm.js` (milestone 3). Port its logic; don't reinvent it. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
+A working prototype exists as a Google Apps Script web app. It has been fully ported and its source removed from the repo: Config, Template, Schedule, Controller and Client to `src/lib/` (milestone 1), CalendarRepository and Subscription to `src/api/calendarApi.js` and `src/services/subscriptionService.js` (milestone 2), Index.html to `src/components/SubscriptionForm.js` (milestone 3), Styles.html to `src/components/theme.js` and `Glass.js` (milestone 6). The original is in git history before commit `3d11876`. The Apps Script version uses `CalendarApp` and the Advanced Calendar service. The app calls the same Calendar REST v3 endpoints directly with `fetch`.
 
 ## Fixed decisions
 
@@ -39,7 +39,7 @@ A working prototype exists as a Google Apps Script web app. Its remaining source
 
 When a library's API or a Google policy described here seems out of date, check the current official docs and tell me what changed before building on it.
 
-## Core logic (port from `reference/apps-script/`)
+## Core logic (ported from the prototype)
 
 Put this in `src/lib/` as pure functions with no React or network imports, fully unit tested with Jest.
 
@@ -146,7 +146,6 @@ src/
   api/                  calendarApi.js (the only file that calls the Calendar REST API), auth.js
   ads/                  ads.js, consent.js (isolated, see Ads)
   config/               constants, defaults, ad unit IDs per environment
-reference/apps-script/  prototype source (read-only)
 website/                static pages for jumppack.online
 ```
 
@@ -204,7 +203,6 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 ## Implementation notes (decided during build)
 
 - The deleted Config.gs defaulted `maxCount` to 24, superseded by this spec's 12.
-- Delete each remaining reference file once it's fully ported: Styles.html after milestone 6.
 - `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by both create and the live preview), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field for future migrations.
 - Extended property values are capped at 1024 characters, and longer values are silently truncated by the API. `planSeries` measures UTF-8 bytes (never fewer than characters) and throws `PropertyTooLargeError`.
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.
@@ -223,6 +221,9 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - Ads (milestone 5): all ad code is in `src/ads/` (`ads.js`, `consent.js`, `Banner.js`); `src/components/BannerSlot.js` only lays it out on the list screen. `ads.isolation.test.js` fails if anything in `src/ads` imports non-ad code (only `react`, `react-native`, `expo-constants`, the ads SDK and `src/config/admob.json` are allowed), if the ads SDK is imported outside `src/ads`, or if any targeting/keywords/content URLs appear. `startAds()` runs the UMP consent flow at launch and initializes the SDK only if `canRequestAds`; measurement is delayed until then (`delayAppMeasurementInit`). Settings shows "Manage ad privacy choices" when the consent SDK says the region requires it.
 - AdMob IDs: `src/config/admob.json` (public, committed). `app.config.js` extends `app.json` and picks the real app ID only when `EAS_BUILD_PROFILE=production` (it refuses to build production without one); every other build uses Google's test app ID, and the banner uses `TestIds.ADAPTIVE_BANNER` unless it's a non-dev production build. The Google Mobile Ads SDK adds the `AD_ID` permission, so the Play data safety form must declare the advertising ID.
 - Workaround for a `react-native-google-mobile-ads` 17.2.0 bug: its `android/app-json.gradle` sets a misspelled property (`googleAdsJson`) when `app.json` has no top-level `react-native-google-mobile-ads` key, and the build then fails with "Cannot get property 'googleMobileAdsJson'". `app.json` therefore carries that root key with the test app ID (non-empty, since Groovy treats `{}` as false). It only feeds the library's own manifest defaults; the Expo plugin's `tools:replace` meta-data in `app.config.js` wins, so production still gets the real ID. Expo warns "Ignoring extra key"; that's expected. Remove the key once the library fixes the typo.
+- Blur (milestone 6): `Background` renders the gradient and blobs inside an `expo-blur` `BlurTargetView`; screen content sits outside it (otherwise cards would blur themselves), and `GlassCard` puts a `BlurView` pointed at that target behind its content, topped with the same `glass` tint as before so AA contrast holds whether or not blur renders. `blurMethod="dimezisBlurViewSdk31Plus"` uses RenderNode on Android 12+ and falls back to plain translucency on older devices. `GLASS_BLUR` in `Glass.js` turns blur off everywhere if it's slow on mid-range phones.
+- Icons: `python3 scripts/generate-icons.py` (Pillow) draws every icon asset from shapes: the full icon, the adaptive icon background/foreground (glyph kept inside the 66% safe circle), the Android 13 monochrome icon, the splash tile and the 96x96 white notification icon. `expo-splash-screen` shows the tile on `#e3ecff` (light) or `#0d1022` (dark). The loading screen and the stack's `contentStyle` use the theme background so there's no white flash.
+- Website hosting: the user prefers Cloudflare (`jumppack.online` DNS is there). Recommended Cloudflare Pages over EC2: AWS's free plan for new accounts (since 2025-07-15) is credit-based and ends after 6 months, and EC2 needs server upkeep. Awaiting the user's final choice before writing deploy config.
 - `validate()` returns `{ sub, errors, valid }` with per-field errors for the form. `normalize()` throws a `ValidationError` carrying the same errors.
 
 ## Working style

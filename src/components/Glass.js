@@ -1,25 +1,43 @@
+import { BlurTargetView, BlurView } from "expo-blur";
 import { StatusBar } from "expo-status-bar";
+import { createContext, useContext, useRef } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { radius, useTheme } from "./theme";
 
+// Frosted glass: cards blur the screen's background shapes. On Android the
+// blurred content must live in a BlurTargetView that cards point at. The
+// "Sdk31Plus" method uses RenderNode on Android 12+ and falls back to the
+// plain translucent glass on older phones, which already meets AA contrast.
+// Set to false to drop blur everywhere if it's slow on mid-range devices.
+export const GLASS_BLUR = true;
+const BLUR_METHOD = "dimezisBlurViewSdk31Plus";
+
+const BlurTargetContext = createContext(null);
+
 // Soft colored shapes behind the content, like the prototype's blurred blobs.
 // Radial gradients give the same soft falloff without a blur pass.
 export function Background({ children }) {
   const t = useTheme();
+  const target = useRef(null);
   return (
-    <View
-      style={[
-        StyleSheet.absoluteFill,
-        { experimental_backgroundImage: `linear-gradient(135deg, ${t.bg[0]}, ${t.bg[1]} 50%, ${t.bg[2]})` },
-      ]}
-    >
+    <View style={styles.fill}>
       <StatusBar style={t.dark ? "light" : "dark"} />
-      <Blob color={t.blobs[0]} style={{ top: "-18%", left: "-35%" }} />
-      <Blob color={t.blobs[1]} style={{ top: "30%", right: "-45%" }} />
-      <Blob color={t.blobs[2]} style={{ bottom: "-22%", left: "5%" }} />
-      {children}
+      <BlurTargetView ref={target} style={StyleSheet.absoluteFill}>
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { experimental_backgroundImage: `linear-gradient(135deg, ${t.bg[0]}, ${t.bg[1]} 50%, ${t.bg[2]})` },
+          ]}
+        >
+          <Blob color={t.blobs[0]} style={{ top: "-18%", left: "-35%" }} />
+          <Blob color={t.blobs[1]} style={{ top: "30%", right: "-45%" }} />
+          <Blob color={t.blobs[2]} style={{ bottom: "-22%", left: "5%" }} />
+        </View>
+      </BlurTargetView>
+      {/* Content stays outside the target, or cards would blur themselves. */}
+      <BlurTargetContext.Provider value={target}>{children}</BlurTargetContext.Provider>
     </View>
   );
 }
@@ -47,18 +65,33 @@ export function Screen({ children, style }) {
 
 export function GlassCard({ children, style }) {
   const t = useTheme();
+  const target = useContext(BlurTargetContext);
+  const blur = GLASS_BLUR && target;
   return (
     <View
       style={[
         styles.card,
         {
-          backgroundColor: t.glass,
+          backgroundColor: blur ? "transparent" : t.glass,
           borderColor: t.border,
           boxShadow: `${t.shadow}, inset 0px 1px 0px ${t.edge}`,
         },
         style,
       ]}
     >
+      {blur ? (
+        <>
+          <BlurView
+            blurTarget={target}
+            blurMethod={BLUR_METHOD}
+            intensity={60}
+            tint={t.dark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+          />
+          {/* Same tint as the unblurred glass, so contrast holds either way. */}
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: t.glass }]} />
+        </>
+      ) : null}
       <View
         pointerEvents="none"
         style={[
@@ -125,6 +158,7 @@ export function StatusBox({ children, tone = "normal" }) {
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   screen: { flex: 1 },
   blob: { position: "absolute", width: "130%", aspectRatio: 1, opacity: 0.55 },
   card: {

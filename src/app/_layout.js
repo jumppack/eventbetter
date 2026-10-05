@@ -3,23 +3,29 @@ import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 
 import { startAds } from "../ads/ads";
-
+import { Background } from "../components/Glass";
 import { SessionProvider, useSession } from "../components/SessionProvider";
 import { SubscriptionsProvider } from "../components/SubscriptionsProvider";
+import { useTheme } from "../components/theme";
 
 function RootStack() {
   const { status } = useSession();
+  const theme = useTheme();
 
+  // Themed, so there's no white flash between the splash screen and the
+  // first real screen.
   if (status === "loading") {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
-      </View>
+      <Background>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={theme.buttonFrom} size="large" />
+        </View>
+      </Background>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.bg[0] } }}>
       <Stack.Protected guard={status === "ready"}>
         <Stack.Screen name="index" />
         <Stack.Screen name="add" />

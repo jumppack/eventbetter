@@ -10,7 +10,7 @@
     "android": {
       "package": "online.jumppack.eventbetter",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#2f5be6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,7 +20,27 @@
       "expo-router",
       "expo-status-bar",
       "@react-native-community/datetimepicker",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2f5be6",
+          "defaultChannel": "reminders"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#e3ecff",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0d1022"
+          }
+        }
+      ]
     ],
     "extra": {
       "router": {},

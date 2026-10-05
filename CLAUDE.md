@@ -130,7 +130,7 @@ Show clear progress while a series is being created, because patching many occur
 
 - Decided (milestone 2): a local Expo module, `modules/google-auth/` (Kotlin), wraps Google's current Android APIs. Credential Manager (`androidx.credentials` + `googleid`) handles sign-in, and `AuthorizationClient` (`play-services-auth`) handles scopes, token refresh (`clearToken`) and `revokeAccess`. `@react-native-google-signin` was rejected: its free edition is built on the deprecated legacy Google Sign-In SDK, and the maintained edition is paid. `src/api/auth.js` is the JS wrapper.
 - Request only basic profile at sign-in, then the Calendar scope separately.
-- Scopes (decided): `calendar.app.created` (create the app's own calendar and manage its events) plus `calendar.calendarlist.readonly`. `calendarList.list` doesn't accept `app.created`, so the list scope is what lets the app find its calendar again after a reinstall. Users can untick scopes, so `authorizeCalendar` checks what was granted: without `app.created` it fails, and without the list scope recovery is simply skipped. Our calendar is identified by summary + description + `accessRole: owner`. Scope sensitivity: confirm in the Cloud console (list scope reported non-sensitive; assume `app.created` is sensitive).
+- Scopes (decided): `calendar.app.created` (create the app's own calendar and manage its events) plus `calendar.calendarlist.readonly`. `calendarList.list` doesn't accept `app.created`, so the list scope is what lets the app find its calendar again after a reinstall. Users can untick scopes, so `authorizeCalendar` checks what was granted: without `app.created` it fails, and without the list scope recovery is simply skipped. Our calendar is identified by summary + description + `accessRole: owner`. Scope sensitivity (confirmed in the Cloud console, 2026-10-05): both scopes are **non-sensitive**, so only brand verification is needed (no sensitive-scope review, no demo video). The submission pack is in `docs/oauth-verification.md`.
 - Get access tokens from the SDK on each API call session and let the SDK handle refresh. Never store tokens yourself.
 - Store the EventBetter calendar ID in AsyncStorage. If it's missing or the calendar was deleted, recover or recreate it.
 
@@ -180,7 +180,7 @@ Generate simple static pages:
    - verify the domain in Google Search Console
    - create an Android OAuth client with the package ID and SHA-1 for the local debug key, the EAS build key and the Play App Signing key, plus the Web client ID the sign-in library requires
    - add test users during development
-2. **OAuth verification** for the Calendar scope: scope justification, demo video of the sign-in and Calendar flow, and policy compliance. Start this early, because it can take weeks.
+2. **OAuth verification: done 2026-10-05.** The app is In production with verified branding; both scopes are non-sensitive, so no scope review was needed. Changing the app name, logo, homepage, privacy policy or domain, or adding a sensitive scope, requires re-verification. The scope justifications and a demo-video script are kept in `docs/oauth-verification.md` in case Google asks.
 3. **AdMob:** create the account and app, create the banner ad unit, publish `app-ads.txt`, and link the app to its Play listing.
 4. **Play Console (personal account):**
    - $25 fee and identity verification

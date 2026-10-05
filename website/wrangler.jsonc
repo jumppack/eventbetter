@@ -2,7 +2,7 @@
 // Cloudflare serves website/public as-is. Set the project's root directory
 // (Path) to "website" and the deploy command to "npx wrangler deploy".
 {
-  "name": "jumppack-site",
+  "name": "jumppack-eventbetter",
   "compatibility_date": "2026-10-05",
   "assets": {
     "directory": "./public",

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EventBetter: numbered titles for recurring Google Calendar events</title>
+  <meta name="description" content="EventBetter creates recurring Google Calendar events where every occurrence has its own numbered title, like “Tuff Gym membership: 3rd month over”.">
+  <link rel="icon" href="/assets/icon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/assets/icon-180.png">
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <main>
+    <section class="glass">
+      <div class="brand">
+        <img src="/assets/icon-512.png" alt="" width="56" height="56">
+        <span>EventBetter</span>
+      </div>
+      <h1>Recurring events where every occurrence has its own title</h1>
+      <p class="lead">
+        In Google Calendar, every occurrence of a recurring event shares one title. EventBetter, an
+        Android app, creates recurring events where each occurrence is numbered, so you can see at a
+        glance how far along you are.
+      </p>
+      <div class="example" aria-label="Example: a monthly recurring event created with EventBetter">
+        <div><span class="date">Oct 30, 2026</span> Tuff Gym membership: 1st month over</div>
+        <div><span class="date">Nov 30, 2026</span> Tuff Gym membership: 2nd month over</div>
+        <div><span class="date">Dec 30, 2026</span> Tuff Gym membership: 3rd month over</div>
+        <div><span class="date">…</span></div>
+        <div><span class="date">Sep 30, 2027</span> Tuff Gym membership: 12th month over</div>
+      </div>
+      <p class="muted">Coming soon to Google Play.</p>
+    </section>
+
+    <section class="glass">
+      <h2>How it works</h2>
+      <ul>
+        <li><strong>One real recurring event.</strong> EventBetter creates a single recurring series in Google Calendar, so deleting it there offers “All events” like any other series.</li>
+        <li><strong>Titles you choose.</strong> Use a template such as <code>{name}: {ord} {unit} over</code> or <code>{name}: {elapsed} {units} done</code>, and every occurrence gets its own number.</li>
+        <li><strong>Any rhythm.</strong> Repeat every few days, weeks, months or years, and stop after a set number of occurrences or on an end date. Month ends are handled correctly: a series starting on the 31st lands on the last day of shorter months.</li>
+        <li><strong>Reminders.</strong> A Google Calendar reminder and an optional phone notification at 9:00 AM the day before each occurrence.</li>
+        <li><strong>Edit or delete anytime.</strong> Change a recurring event and EventBetter rebuilds it, or delete it with all of its occurrences.</li>
+      </ul>
+
+      <h2>Your Calendar, kept separate</h2>
+      <p>
+        EventBetter signs in with your Google account and asks for Calendar access. It creates its own
+        calendar named “EventBetter” and only creates and changes events in that calendar, never in
+        your other calendars. It also reads the names of your calendars, so it can find its own
+        calendar again if you reinstall the app or switch phones.
+      </p>
+      <p>
+        There is no EventBetter server: your data goes only between your phone and Google. Your
+        Google data is never used for advertising. The details are in the
+        <a href="/eventbetter/privacy/">privacy policy</a>.
+      </p>
+
+      <h2>Free, with one ad</h2>
+      <p>
+        EventBetter is free and shows one banner ad on its main screen. It's also open source: the code is
+        on <a href="https://github.com/jumppack/eventbetter">GitHub</a> under the MIT license.
+      </p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      <a href="/eventbetter/privacy/">Privacy policy</a>
+      <a href="mailto:support@jumppack.online">support@jumppack.online</a>
+      <a href="https://github.com/jumppack/eventbetter">Source code</a>
+    </p>
+    <p>EventBetter by jumppack</p>
+  </footer>
+</body>
+</html>

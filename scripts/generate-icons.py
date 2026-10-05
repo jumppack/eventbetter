@@ -12,7 +12,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-ASSETS = Path(__file__).resolve().parent.parent / "assets"
+ROOT = Path(__file__).resolve().parent.parent
+ASSETS = ROOT / "assets"
+SITE = ROOT / "website" / "public" / "assets"
 SCALE = 4
 GRADIENT = ((0x2F, 0x5B, 0xE6), (0x6E, 0x42, 0xD6))  # theme buttonFrom -> buttonTo
 WHITE = (255, 255, 255, 255)
@@ -91,7 +93,14 @@ def main():
     # Status-bar notification icon: white on transparent, 96x96 as Expo asks.
     glyph(96, (0.12, 0.1, 0.88, 0.9)).save(ASSETS / "notification-icon.png")
 
-    print("Wrote icon.png, android-icon-*.png, splash-icon.png and notification-icon.png to assets/")
+    # Website favicon and touch icons, plus the 120x120 logo Google's OAuth
+    # consent screen asks for.
+    SITE.mkdir(parents=True, exist_ok=True)
+    for size in (32, 180, 512):
+        on_gradient(size, (0.24, 0.22, 0.76, 0.76), rounded=size * 0.22).save(SITE / f"icon-{size}.png")
+    on_gradient(120, (0.24, 0.22, 0.76, 0.76)).save(ASSETS / "oauth-logo-120.png")
+
+    print("Wrote app icons to assets/ and website icons to website/public/assets/")
 
 
 if __name__ == "__main__":

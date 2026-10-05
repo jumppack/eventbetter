@@ -1,0 +1,9 @@
+{
+  "test": {
+    "androidAppId": "ca-app-pub-3940256099942544~3347511713"
+  },
+  "production": {
+    "androidAppId": "ca-app-pub-5153841264777284~9121297149",
+    "bannerUnitId": "ca-app-pub-5153841264777284/2033144617"
+  }
+}

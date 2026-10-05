@@ -3,6 +3,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { privacyOptionsRequired, showPrivacyOptions } from "../ads/consent";
 import { GlassCard, Screen, SecondaryButton, StatusBox, TopBar } from "../components/Glass";
 import { useSession } from "../components/SessionProvider";
 import { useSubscriptions } from "../components/SubscriptionsProvider";
@@ -58,6 +59,8 @@ export default function Settings() {
         </Section>
 
         <RemindersSection />
+
+        <AdPrivacySection />
 
         <Section title="About">
           <LinkRow label="Privacy policy" onPress={() => Linking.openURL(LINKS.privacyPolicy)} external />
@@ -128,6 +131,48 @@ function RemindersSection() {
   );
 }
 
+// The consent SDK decides whether the user's region needs this (EEA/UK,
+// some US states); elsewhere there's nothing to manage.
+function AdPrivacySection() {
+  const t = useTheme();
+  const [required, setRequired] = useState(null);
+  const [error, setError] = useState(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      privacyOptionsRequired().then(setRequired);
+    }, []),
+  );
+
+  async function open() {
+    setError(null);
+    try {
+      await showPrivacyOptions();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <Section title="Ads">
+      <Text style={[styles.secondary, { color: t.muted }]}>
+        EventBetter is free and shows one banner ad on the subscriptions list. Your calendar data and
+        Google account details are never shared with the ad network.
+      </Text>
+      {required ? (
+        <View style={styles.actions}>
+          <SecondaryButton title="Manage ad privacy choices" onPress={open} />
+        </View>
+      ) : (
+        <Text style={[styles.secondary, styles.note, { color: t.muted }]}>
+          {required === false ? "No ad privacy choices are needed in your region." : ""}
+        </Text>
+      )}
+      <StatusBox tone="error">{error}</StatusBox>
+    </Section>
+  );
+}
+
 function Section({ title, children }) {
   const t = useTheme();
   return (
@@ -171,4 +216,5 @@ const styles = StyleSheet.create({
   },
   linkText: { fontSize: 16 },
   version: { marginTop: 14 },
+  note: { marginTop: 10 },
 });

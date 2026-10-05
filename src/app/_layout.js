@@ -1,5 +1,8 @@
 import { Stack } from "expo-router";
+import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
+
+import { startAds } from "../ads/ads";
 
 import { SessionProvider, useSession } from "../components/SessionProvider";
 import { SubscriptionsProvider } from "../components/SubscriptionsProvider";
@@ -35,6 +38,12 @@ function RootStack() {
 }
 
 export default function RootLayout() {
+  // Consent (and the form, where the law requires it) runs once at launch,
+  // before any ad is requested.
+  useEffect(() => {
+    startAds();
+  }, []);
+
   return (
     <SessionProvider>
       <SubscriptionsProvider>

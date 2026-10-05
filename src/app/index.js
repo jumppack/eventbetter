@@ -2,6 +2,7 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 
+import { BannerSlot } from "../components/BannerSlot";
 import { Fab, GlassCard, IconButton, PrimaryButton, Screen, StatusBox, TopBar } from "../components/Glass";
 import { useSubscriptions } from "../components/SubscriptionsProvider";
 import { radius, useTheme } from "../components/theme";
@@ -28,23 +29,28 @@ export default function Subscriptions() {
         title="Subscriptions"
         right={<IconButton glyph="⚙︎" label="Settings" onPress={() => router.push("/settings")} />}
       />
-      <FlatList
-        data={items ?? []}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <SubscriptionRow item={item} />}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl
-            refreshing={loading && !firstLoad}
-            onRefresh={refresh}
-            colors={[t.buttonFrom]}
-            progressBackgroundColor={t.sheet}
-          />
-        }
-        ListHeaderComponent={error ? <StatusBox tone="error">{error.message} Pull down to try again.</StatusBox> : null}
-        ListEmptyComponent={firstLoad ? <Loading /> : error ? null : <EmptyState />}
-      />
-      {items?.length ? <Fab label="Add subscription" onPress={() => router.push("/add")} /> : null}
+      <View style={styles.flex}>
+        <FlatList
+          data={items ?? []}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <SubscriptionRow item={item} />}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && !firstLoad}
+              onRefresh={refresh}
+              colors={[t.buttonFrom]}
+              progressBackgroundColor={t.sheet}
+            />
+          }
+          ListHeaderComponent={
+            error ? <StatusBox tone="error">{error.message} Pull down to try again.</StatusBox> : null
+          }
+          ListEmptyComponent={firstLoad ? <Loading /> : error ? null : <EmptyState />}
+        />
+        {items?.length ? <Fab label="Add subscription" onPress={() => router.push("/add")} /> : null}
+      </View>
+      <BannerSlot />
     </Screen>
   );
 }
@@ -113,6 +119,7 @@ function Loading() {
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   list: { padding: 12, paddingBottom: 120, gap: 12, flexGrow: 1 },
   rowWrap: { borderRadius: radius.card },
   pressed: { opacity: 0.85 },

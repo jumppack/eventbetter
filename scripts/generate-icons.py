@@ -10,11 +10,12 @@ Everything is drawn at 4x and downsampled for clean edges.
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
 SITE = ROOT / "website" / "public" / "assets"
+STORE = ROOT / "assets" / "store"
 SCALE = 4
 GRADIENT = ((0x2F, 0x5B, 0xE6), (0x6E, 0x42, 0xD6))  # theme buttonFrom -> buttonTo
 WHITE = (255, 255, 255, 255)
@@ -76,6 +77,54 @@ def on_gradient(size, box, rounded=None):
     return base
 
 
+def font(size):
+    # Pillow's bundled font (Aileron, CC0), so no font licensing questions.
+    return ImageFont.load_default(size=size)
+
+
+def feature_graphic():
+    """Play Store feature graphic, 1024x500. No third-party trademarks."""
+    w, h = 1024, 500
+    img = Image.new("RGBA", (w, h))
+    px = img.load()
+    (r1, g1, b1), (r2, g2, b2) = (0x1A, 0x2A, 0x6E), (0x3A, 0x1E, 0x6E)
+    for y in range(h):
+        for x in range(w):
+            t = (x / w * 0.7 + y / h * 0.3)
+            px[x, y] = (round(r1 + (r2 - r1) * t), round(g1 + (g2 - g1) * t), round(b1 + (b2 - b1) * t), 255)
+
+    # Soft light blobs, like the app's background.
+    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    for (cx, cy, rad, color) in ((140, 60, 260, (122, 162, 255, 70)), (900, 420, 300, (255, 143, 214, 55))):
+        gd.ellipse((cx - rad, cy - rad, cx + rad, cy + rad), fill=color)
+    from PIL import ImageFilter
+    img.alpha_composite(glow.filter(ImageFilter.GaussianBlur(70)))
+
+    tile = on_gradient(200, (0.24, 0.22, 0.76, 0.76), rounded=46)
+    img.alpha_composite(tile, (84, 150))
+
+    d = ImageDraw.Draw(img)
+    d.text((330, 128), "EventBetter", font=font(76), fill=(255, 255, 255, 255))
+    d.text((334, 222), "Every occurrence gets its own title", font=font(34), fill=(220, 226, 255, 255))
+
+    # Three example occurrence chips. Translucent fills must be composited:
+    # ImageDraw on RGBA overwrites pixels instead of blending them.
+    f = font(26)
+    labels = ("1st month over", "2nd month over", "3rd month over")
+    chips = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(chips)
+    for i, label in enumerate(labels):
+        y = 292 + i * 56
+        tw = d.textlength(label, font=f)
+        cd.rounded_rectangle((334, y, 334 + tw + 36, y + 44), radius=14, fill=(255, 255, 255, 38), outline=(255, 255, 255, 110))
+    img.alpha_composite(chips)
+    d = ImageDraw.Draw(img)
+    for i, label in enumerate(labels):
+        d.text((352, 292 + i * 56 + 7), label, font=f, fill=(255, 255, 255, 255))
+    return img
+
+
 def main():
     # Legacy/full icon (also the Play Store listing icon base): full-bleed square.
     on_gradient(1024, (0.24, 0.22, 0.76, 0.76)).save(ASSETS / "icon.png")
@@ -100,7 +149,13 @@ def main():
         on_gradient(size, (0.24, 0.22, 0.76, 0.76), rounded=size * 0.22).save(SITE / f"icon-{size}.png")
     on_gradient(120, (0.24, 0.22, 0.76, 0.76)).save(ASSETS / "oauth-logo-120.png")
 
-    print("Wrote app icons to assets/ and website icons to website/public/assets/")
+    # Play Store listing: 512x512 icon (Play applies its own mask) and the
+    # 1024x500 feature graphic.
+    STORE.mkdir(parents=True, exist_ok=True)
+    on_gradient(512, (0.24, 0.22, 0.76, 0.76)).save(STORE / "play-icon-512.png")
+    feature_graphic().convert("RGB").save(STORE / "feature-graphic.png")
+
+    print("Wrote app icons to assets/, store graphics to assets/store/ and website icons to website/public/assets/")
 
 
 if __name__ == "__main__":

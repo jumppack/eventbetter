@@ -57,3 +57,6 @@ keystore.properties
 
 # local tool caches
 .enola/
+
+# raw store screenshots (may contain personal data); processed ones go in assets/store/screenshots/
+screenshots/

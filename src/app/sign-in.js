@@ -36,7 +36,7 @@ export default function SignIn() {
         <Text style={[styles.title, { color: t.text }]}>EventBetter</Text>
         <Text style={[styles.subtitle, { color: t.muted }]}>
           Recurring Google Calendar events with a numbered title on every occurrence, so you can see
-          how long you've been subscribed.
+          at a glance how far along you are.
         </Text>
         <PrimaryButton title="Continue with Google" onPress={onPress} busy={busy} />
         <StatusBox tone="error">{error}</StatusBox>

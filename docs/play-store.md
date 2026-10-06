@@ -109,8 +109,10 @@ children. The app isn't designed to appeal to children.
 
 **News app:** No. **Government app:** No. **Financial features:** none.
 **Health:** none. **Advertising ID:** Yes, the app uses the advertising ID,
-for **Advertising or marketing** and **Analytics** (the Google Mobile Ads SDK
-declares the `AD_ID` permission).
+for **Advertising or marketing**, **Analytics** and **Fraud prevention,
+security and compliance**, matching the Data safety form (the Google Mobile
+Ads SDK declares the `AD_ID` permission). Play blocks sending a release for
+review until this declaration is saved.
 
 **Account deletion:** EventBetter has no accounts of its own (it uses Google
 sign-in and stores nothing on a server), so if Play asks, explain that there's

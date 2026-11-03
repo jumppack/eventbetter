@@ -2,10 +2,21 @@ import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { DEFAULTS, FREQUENCIES, UNITS } from "../config/defaults";
-import { isValidDateString, parseDate, toDateString } from "../lib/schedule";
+import { gridDate, isValidDateString, occurrences, parseDate, toDateString } from "../lib/schedule";
 import { buildOccurrences } from "../lib/series";
 import { validate } from "../lib/validate";
-import { Bullet, Code, DateField, Disclosure, Field, Help, SelectField, TextField } from "./FormFields";
+import {
+  Bullet,
+  ChoiceCards,
+  Code,
+  DateField,
+  Disclosure,
+  Field,
+  Help,
+  SegmentedField,
+  SelectField,
+  TextField,
+} from "./FormFields";
 import { PrimaryButton, StatusBox } from "./Glass";
 import { radius, useTheme } from "./theme";
 
@@ -24,10 +35,17 @@ export function emptyForm() {
     interval: String(DEFAULTS.interval),
     end: "",
     maxCount: String(DEFAULTS.maxCount),
+    direction: DEFAULTS.direction,
+    starting: DEFAULTS.starting,
     title: DEFAULTS.title,
     startTitle: "",
+    endTitle: "",
   };
 }
+
+// `{units}` now agrees with the number before it, so the old singular-only
+// `{unit}` is offered as `{units}` when an older event is edited.
+const modernize = (template) => (template ?? "").replaceAll("{unit}", "{units}");
 
 // Saved config (numbers) back to form values (strings) for the edit screen.
 export function toFormValues(config) {
@@ -37,7 +55,33 @@ export function toFormValues(config) {
     interval: String(config.interval),
     maxCount: String(config.maxCount),
     end: config.end ?? "",
-    startTitle: config.startTitle ?? "",
+    title: modernize(config.title),
+    startTitle: modernize(config.startTitle),
+    endTitle: modernize(config.endTitle),
+  };
+}
+
+const formatDate = (date) =>
+  date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+
+// "1 month later", "2 weeks later", for the Starting option.
+function laterLabel(interval, frequency) {
+  const n = Number.isInteger(Number(interval)) && Number(interval) > 0 ? Number(interval) : 1;
+  const unit = UNITS[frequency] ?? "period";
+  return `${n} ${n === 1 ? unit : unit + "s"} later`;
+}
+
+// The dates the Numbering options and the start/end title help refer to.
+// Null fields when the form can't be scheduled yet.
+function layoutDates(sub, valid) {
+  if (!valid) return { total: null, startDate: null, laterDate: null, endDate: null, endFree: false };
+  const total = occurrences(sub).length;
+  return {
+    total,
+    startDate: parseDate(sub.start),
+    laterDate: gridDate(sub, 1),
+    endDate: total > 0 ? gridDate(sub, total) : null,
+    endFree: sub.starting === "start",
   };
 }
 
@@ -50,7 +94,9 @@ const PROGRESS_TEXT = {
 
 export const progressText = (p) => PROGRESS_TEXT[p.phase](p);
 
-const PREVIEW_COUNT = 3;
+// The preview shows the first two items and the last, so countdowns and end
+// titles are visible too.
+const PREVIEW_HEAD = 2;
 
 // Fields and help text follow the prototype's Index.html. `status` is
 // { text, tone } shown under the button.
@@ -63,14 +109,12 @@ export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
   const preview = useMemo(() => {
     if (!valid) return [];
     try {
-      return buildOccurrences({ ...sub, maxCount: Math.min(sub.maxCount, PREVIEW_COUNT + 1) }).slice(
-        0,
-        PREVIEW_COUNT,
-      );
+      return buildOccurrences(sub);
     } catch {
       return [];
     }
   }, [sub, valid]);
+  const dates = useMemo(() => layoutDates(sub, valid), [sub, valid]);
 
   const fieldError = (key) => (showErrors ? errors[key] : undefined);
 
@@ -142,23 +186,57 @@ export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
         <TextField value={form.maxCount} onChangeText={set("maxCount")} keyboardType="number-pad" />
       </Field>
 
+      <SectionHeading>Numbering</SectionHeading>
+
+      <Field label="Count" error={fieldError("direction")}>
+        <SegmentedField
+          accessibilityLabel="Count"
+          value={form.direction}
+          onChange={set("direction")}
+          options={[
+            { value: "up", label: "Up", hint: "1, 2, 3" },
+            { value: "down", label: "Down", hint: countdownHint(dates.total ?? sub.maxCount) },
+          ]}
+        />
+      </Field>
+
+      <Field label="Starting" error={fieldError("starting")}>
+        <ChoiceCards
+          accessibilityLabel="Starting"
+          value={form.starting}
+          onChange={set("starting")}
+          options={[
+            { value: "start", label: "On the start date", detail: firstOn(dates.startDate) },
+            { value: "later", label: laterLabel(form.interval, form.frequency), detail: firstOn(dates.laterDate) },
+          ]}
+        />
+      </Field>
+
       <Field label="Title template" help={<TemplateHelp />}>
         <TextField value={form.title} onChangeText={set("title")} autoCapitalize="none" autoCorrect={false} />
       </Field>
 
       <Field
         label="Start date title (optional)"
-        help={
-          <Help>
-            Adds one extra occurrence on the start date itself, e.g. <Code>{"{name} started"}</Code> → Tuff Gym
-            membership started. Leave blank to skip. The grey text is only a hint, not a value.
-          </Help>
-        }
+        help={<Help>{titleHelp(dates.startDate, dates.endFree, "1st")}</Help>}
       >
         <TextField
           value={form.startTitle}
           onChangeText={set("startTitle")}
           placeholder="{name} started"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </Field>
+
+      <Field
+        label="End date title (optional)"
+        help={<Help>{titleHelp(dates.endDate, !dates.endFree, "last")}</Help>}
+      >
+        <TextField
+          value={form.endTitle}
+          onChangeText={set("endTitle")}
+          placeholder="{name} ended"
           autoCapitalize="none"
           autoCorrect={false}
         />
@@ -176,20 +254,49 @@ export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
 
 }
 
+const countdownHint = (total) =>
+  Number.isInteger(total) && total >= 3 ? `${total}, ${total - 1}, ${total - 2}` : "… 3, 2, 1";
+
+const firstOn = (date) => (date ? `1st occurrence on ${formatDate(date)}` : "Pick a start date first");
+
+// Whether a start or end title adds an event or renames the occurrence that
+// already falls on that date depends on the Starting option: "On the start
+// date" occupies the start date and leaves the end date free, "later" the
+// reverse.
+function titleHelp(date, occupied, which) {
+  const blank = " Leave blank to skip. The grey text is only a hint, not a value.";
+  if (!date) return "Shown on that date." + blank;
+  const effect = occupied ? `replaces the ${which} occurrence's title` : "adds one extra event";
+  return `Shown on ${formatDate(date)}; ${effect}.` + blank;
+}
+
+function SectionHeading({ children }) {
+  const t = useTheme();
+  return <Text style={[styles.section, { color: t.muted }]}>{children}</Text>;
+}
+
 function Preview({ items }) {
   const t = useTheme();
   if (!items.length) return null;
+  const hidden = items.length - PREVIEW_HEAD - 1;
+  const rows = hidden > 0 ? [...items.slice(0, PREVIEW_HEAD), null, items.at(-1)] : items;
   return (
     <View style={[styles.preview, { backgroundColor: t.field, borderColor: t.fieldBorder }]}>
       <Text style={[styles.previewTitle, { color: t.muted }]}>Preview</Text>
-      {items.map((o) => (
-        <View key={o.n} style={styles.previewRow}>
-          <Text style={[styles.previewDate, { color: t.muted }]}>
-            {o.date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+      {rows.map((o) =>
+        o === null ? (
+          <Text key="more" style={[styles.previewDate, { color: t.muted }]}>
+            {`… ${hidden} more`}
           </Text>
-          <Text style={[styles.previewText, { color: t.text }]}>{o.title}</Text>
-        </View>
-      ))}
+        ) : (
+          <View key={o.step} style={styles.previewRow}>
+            <Text style={[styles.previewDate, { color: t.muted }]}>
+              {formatDate(o.date) + (o.numbered ? "" : " · extra event")}
+            </Text>
+            <Text style={[styles.previewText, { color: t.text }]}>{o.title}</Text>
+          </View>
+        ),
+      )}
     </View>
   );
 }
@@ -202,30 +309,30 @@ function TemplateHelp() {
         <Code>{"{name}"}</Code> the Title above
       </Bullet>
       <Bullet>
-        <Code>{"{count}"}</Code> occurrence number: 1, 2, 3
+        <Code>{"{count}"}</Code> occurrence number: 1, 2, 3 (or 12, 11, 10 when counting down)
       </Bullet>
       <Bullet>
-        <Code>{"{ord}"}</Code> occurrence number as a position: 1st, 2nd, 3rd
+        <Code>{"{ord}"}</Code> the same number as a position: 1st, 2nd, 3rd
       </Bullet>
       <Bullet>
-        <Code>{"{elapsed}"}</Code> total units passed: count × Repeats every
+        <Code>{"{units}"}</Code> day, week, month or year, matching the number before it: 1 month, 3 months, 3rd
+        month
       </Bullet>
-      <Bullet>
-        <Code>{"{unit}"}</Code> month, week, year or day
-      </Bullet>
-      <Bullet>
-        <Code>{"{units}"}</Code> unit pluralised to match {"{elapsed}"}: 1 month, 2 months
-      </Bullet>
+      <Help style={styles.note}>
+        {"{count}"} counts occurrences, not time. With Repeats every 3 months, the 2nd occurrence is "2 months", so
+        write your own word instead, like "quarter".
+      </Help>
       <Disclosure title="Examples">
         <Bullet>
-          <Code>{"{name}: {ord} {unit} over"}</Code> → Tuff Gym membership: 3rd month over
+          <Code>{"{name}: {ord} {units} over"}</Code> → Tuff Gym membership: 3rd month over
         </Bullet>
         <Bullet>
-          <Code>{"{name}: {elapsed} {units} done"}</Code> → Tuff Gym membership: 3 months done
+          <Code>{"{name}: {ord} payment done"}</Code> with Starting on the start date → Rent: 1st payment done on the
+          start date
         </Bullet>
         <Bullet>
-          <Code>{"{name}: {ord} renewal, {elapsed} {units} in"}</Code> (repeat every 3) → Tuff Gym membership: 2nd
-          renewal, 6 months in
+          <Code>{"{name}: {count} {units} remaining"}</Code> with Count down → Tuff Gym membership: 12 months
+          remaining … 1 month remaining
         </Bullet>
       </Disclosure>
     </View>
@@ -235,6 +342,8 @@ function TemplateHelp() {
 const styles = StyleSheet.create({
   preview: { marginTop: 22, padding: 14, borderRadius: radius.field, borderWidth: 1, gap: 8 },
   previewTitle: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
+  section: { marginTop: 28, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
+  note: { marginTop: 6 },
   previewRow: { gap: 2 },
   previewDate: { fontSize: 12 },
   previewText: { fontSize: 14, fontWeight: "500" },

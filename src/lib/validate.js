@@ -1,4 +1,4 @@
-import { DEFAULTS, MAX_COUNT, UNITS } from "../config/defaults";
+import { DEFAULTS, DIRECTIONS, MAX_COUNT, STARTINGS, UNITS } from "../config/defaults";
 import { isValidDateString, parseDate } from "./schedule";
 
 const isBlank = (v) =>
@@ -18,8 +18,11 @@ export function validate(input) {
     interval: toInt(pick("interval")),
     end: isBlank(input.end) ? "" : String(input.end).trim(),
     maxCount: toInt(pick("maxCount")),
+    direction: pick("direction"),
+    starting: pick("starting"),
     title: pick("title"),
     startTitle: isBlank(input.startTitle) ? "" : input.startTitle,
+    endTitle: isBlank(input.endTitle) ? "" : input.endTitle,
     description: pick("description"),
   };
 
@@ -32,6 +35,9 @@ export function validate(input) {
   if (!Object.hasOwn(UNITS, sub.frequency)) {
     errors.frequency = `Unknown frequency: ${sub.frequency}`;
   }
+
+  if (!DIRECTIONS.includes(sub.direction)) errors.direction = `Unknown count direction: ${sub.direction}`;
+  if (!STARTINGS.includes(sub.starting)) errors.starting = `Unknown starting option: ${sub.starting}`;
 
   if (!Number.isInteger(sub.interval) || sub.interval < 1) {
     errors.interval = "Repeat every must be a whole number of at least 1";

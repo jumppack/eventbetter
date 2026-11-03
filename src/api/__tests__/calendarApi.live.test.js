@@ -18,6 +18,8 @@ const CASES = [
   { name: "Quarterly from the 31st", start: "2027-01-31", frequency: "monthly", interval: "3", maxCount: "8" },
   { name: "Yearly from Feb 29", start: "2028-02-29", frequency: "yearly", maxCount: "5" },
   { name: "Monthly from the 31st with start event", start: "2027-01-31", frequency: "monthly", maxCount: "6", startTitle: "{name} started" },
+  { name: "Monthly from the 31st, starting on the start date, with end event", start: "2027-01-31", frequency: "monthly", maxCount: "6", starting: "start", endTitle: "{name} ended" },
+  { name: "Yearly from Feb 29, starting on the start date", start: "2028-02-29", frequency: "yearly", maxCount: "5", starting: "start" },
 ];
 
 run("Google Calendar generates the planned dates", () => {

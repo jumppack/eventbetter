@@ -64,7 +64,7 @@ describe("create", () => {
       ebKey: "Tuff Gym membership|2026-09-30|monthly|1",
       ebName: "Tuff Gym membership",
     });
-    expect(JSON.parse(body.extendedProperties.private.ebConfig)).toMatchObject({ v: 1, ...gym });
+    expect(JSON.parse(body.extendedProperties.private.ebConfig)).toMatchObject({ v: 2, ...gym });
   });
 
   it("patches every occurrence except the first, throttled between writes", async () => {

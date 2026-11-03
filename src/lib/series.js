@@ -1,9 +1,9 @@
 import { MAX_PROPERTY_VALUE_LENGTH, REMINDER_MINUTES, UNITS } from "../config/defaults";
 import { rrule } from "./rrule";
-import { addDays, occurrences, parseDate, toDateString } from "./schedule";
+import { addDays, gridDate, occurrences, toDateString } from "./schedule";
 import { fill, vars } from "./template";
 
-const CONFIG_VERSION = 1;
+const CONFIG_VERSION = 2;
 const CONFIG_FIELDS = [
   "name",
   "start",
@@ -11,8 +11,11 @@ const CONFIG_FIELDS = [
   "interval",
   "end",
   "maxCount",
+  "direction",
+  "starting",
   "title",
   "startTitle",
+  "endTitle",
   "description",
 ];
 
@@ -25,23 +28,29 @@ function textFor(sub, n, template) {
   return { title: fill(template, v), description: fill(sub.description, v) };
 }
 
-// Every occurrence the series will have, in order, with its own title. The
-// optional start event is occurrence 0 on the start date itself.
+// Every dated item the series will have, in date order. Numbered occurrences
+// show `number` (counted up or down). The start and end titles belong to the
+// start date (grid step 0) and the end date (step N): each renames the
+// numbered occurrence already on that date, or adds an extra item there. In
+// titles they fill {count} with 0 and N respectively.
 export function buildOccurrences(sub) {
-  const list = occurrences(sub).map(({ n, date }) => ({
-    n,
-    date,
-    ...textFor(sub, n, sub.title),
-  }));
+  const numbered = occurrences(sub);
+  const total = numbered.length;
+  const list = numbered.map(({ n, step, date }) => {
+    const number = sub.direction === "down" ? total - n + 1 : n;
+    return { n, step, date, number, numbered: true, ...textFor(sub, number, sub.title) };
+  });
 
-  if (sub.startTitle) {
-    list.unshift({
-      n: 0,
-      date: parseDate(sub.start),
-      ...textFor(sub, 0, sub.startTitle),
-    });
-  }
-  return list;
+  const place = (step, n, number, template) => {
+    const text = textFor(sub, number, template);
+    const existing = list.find((o) => o.step === step);
+    if (existing) Object.assign(existing, text);
+    else list.push({ n, step, date: gridDate(sub, step), number, numbered: false, ...text });
+  };
+
+  if (sub.startTitle) place(0, 0, 0, sub.startTitle);
+  if (sub.endTitle && total > 0) place(total, total + 1, total, sub.endTitle);
+  return list.sort((a, b) => a.step - b.step);
 }
 
 // Everything needed to write the series, for an already normalized `sub`.
@@ -88,8 +97,11 @@ export function encodeConfig(sub) {
   return JSON.stringify(config);
 }
 
+// Version 1 predates numbering options: it always counted up from one
+// period after the start date, with no end title.
 export function decodeConfig(json) {
   const { v, ...config } = JSON.parse(json);
+  if (v === 1) return { ...config, direction: "up", starting: "later", endTitle: "" };
   if (v !== CONFIG_VERSION) {
     throw new Error(`Unsupported event config version: ${v}`);
   }

@@ -189,6 +189,72 @@ export function SelectField({ value, options, onChange, title, accessibilityLabe
   );
 }
 
+// Two or three short options side by side, e.g. Count: Up / Down. Each option
+// can carry a hint line ("1, 2, 3") that shows what it does.
+export function SegmentedField({ value, options, onChange, accessibilityLabel }) {
+  const t = useTheme();
+  const on = t.onLink;
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+      style={[styles.segments, { backgroundColor: t.field, borderColor: t.fieldBorder }]}
+    >
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={o.hint ? `${o.label}, ${o.hint}` : o.label}
+            onPress={() => onChange(o.value)}
+            style={[styles.segment, selected && { backgroundColor: t.link }]}
+          >
+            <Text style={[styles.segmentLabel, { color: selected ? on : t.text }]}>{o.label}</Text>
+            {o.hint ? <Text style={[styles.segmentHint, { color: selected ? on : t.muted }]}>{o.hint}</Text> : null}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// Stacked radio cards for options too long for a segmented control. Each card
+// has a title and a detail line (e.g. the actual date it leads to).
+export function ChoiceCards({ value, options, onChange, accessibilityLabel }) {
+  const t = useTheme();
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={styles.cards}>
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            accessibilityLabel={o.detail ? `${o.label}, ${o.detail}` : o.label}
+            onPress={() => onChange(o.value)}
+            style={[
+              styles.card,
+              { backgroundColor: selected ? t.fieldFocus : t.field, borderColor: selected ? t.link : t.fieldBorder },
+              selected && styles.cardSelected,
+            ]}
+          >
+            <View style={[styles.radio, { borderColor: selected ? t.link : t.fieldBorder }]}>
+              {selected ? <View style={[styles.radioDot, { backgroundColor: t.link }]} /> : null}
+            </View>
+            <View style={styles.cardText}>
+              <Text style={[styles.cardLabel, { color: t.text }]}>{o.label}</Text>
+              {o.detail ? <Text style={[styles.help, { color: t.muted }]}>{o.detail}</Text> : null}
+            </View>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   field: { marginTop: 18, gap: 6 },
   label: { fontSize: 13, fontWeight: "600", letterSpacing: 0.13 },
@@ -220,4 +286,24 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   optionText: { fontSize: 16 },
+  segments: { flexDirection: "row", borderWidth: 1, borderRadius: radius.field, padding: 3, gap: 3 },
+  segment: { flex: 1, minHeight: 48, borderRadius: radius.field - 3, alignItems: "center", justifyContent: "center", paddingVertical: 6 },
+  segmentLabel: { fontSize: 15, fontWeight: "600" },
+  segmentHint: { fontSize: 12, marginTop: 1 },
+  cards: { gap: 8 },
+  card: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: radius.field,
+  },
+  cardSelected: { borderWidth: 2, paddingHorizontal: 13, paddingVertical: 9 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  radioDot: { width: 10, height: 10, borderRadius: 5 },
+  cardText: { flex: 1, gap: 1 },
+  cardLabel: { fontSize: 15 },
 });

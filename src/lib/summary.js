@@ -7,12 +7,12 @@ export function describeFrequency({ frequency, interval }) {
 }
 
 // Progress for the list screen. An occurrence dated today counts as done
-// ("5th month over" happens on its date). The optional start event (n = 0)
-// isn't counted toward "5 of 12", but can still be the next occurrence.
+// ("5th month over" happens on its date). Extra start and end events aren't
+// counted toward "5 of 12", but can still be the next occurrence.
 // Dates compare as YYYY-MM-DD strings, so no time-of-day or zone math.
 export function summarize(items, today) {
   const todayStr = toDateString(today);
-  const numbered = items.filter((o) => o.n > 0);
+  const numbered = items.filter((o) => o.numbered);
   const done = numbered.filter((o) => toDateString(o.date) <= todayStr).length;
   const next = items.find((o) => toDateString(o.date) > todayStr) ?? null;
   return {

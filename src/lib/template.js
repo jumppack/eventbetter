@@ -1,18 +1,32 @@
+// Placeholders that print a number. `{units}` agrees with whichever of these
+// came last before it: "{ord} {units}" is "3rd month", "{count} {units}" is
+// "3 months". `{elapsed}` and `{unit}` are no longer documented but stay
+// understood, because templates saved by older versions still use them.
+const NUMBERS = new Set(["count", "ord", "elapsed"]);
+
 export function fill(template, vars) {
-  return template.replace(/\{(\w+)\}/g, (match, key) =>
-    Object.hasOwn(vars, key) ? String(vars[key]) : match,
-  );
+  let lastNumber = null;
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    if (key === "units" && Object.hasOwn(vars, "unit")) return unitsAfter(lastNumber, vars);
+    if (!Object.hasOwn(vars, key)) return match;
+    if (NUMBERS.has(key)) lastNumber = key;
+    return String(vars[key]);
+  });
 }
 
+function unitsAfter(lastNumber, vars) {
+  const n = lastNumber === "count" || lastNumber === "elapsed" ? vars[lastNumber] : 1;
+  return n === 1 ? vars.unit : vars.unit + "s";
+}
+
+// `n` is the number this occurrence shows (counted up or down).
 export function vars(name, n, interval, unit) {
-  const elapsed = n * interval;
   return {
     name,
     count: n,
     ord: ordinal(n),
-    elapsed,
+    elapsed: n * interval,
     unit,
-    units: elapsed === 1 ? unit : unit + "s",
   };
 }
 

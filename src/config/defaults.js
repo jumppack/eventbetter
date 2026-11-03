@@ -10,12 +10,21 @@ export const UNITS = {
   yearly: "year",
 };
 
+// Numbering. "up" counts 1, 2, 3; "down" counts N … 1. "later" puts the 1st
+// occurrence one repeat period after the start date ("1st month over");
+// "start" puts it on the start date itself ("1st payment done").
+export const DIRECTIONS = ["up", "down"];
+export const STARTINGS = ["start", "later"];
+
 export const DEFAULTS = {
   frequency: "monthly",
   interval: 1,
   maxCount: 12,
-  title: "{name}: {ord} {unit} over",
+  direction: "up",
+  starting: "later",
+  title: "{name}: {ord} {units} over",
   startTitle: "",
+  endTitle: "",
   description: "",
 };
 

@@ -33,15 +33,23 @@ export function addUnits(base, frequency, k) {
   return new Date(year, month, Math.min(base.getDate(), lastDay));
 }
 
-export function occurrences({ start, frequency, interval, end, maxCount }) {
-  const startDate = parseDate(start);
+// The dates a series can use sit on a grid: the start date (step 0), then one
+// repeat period apart. Numbered occurrences take steps 1…N ("later", the
+// default) or 0…N-1 ("start"). `step` is the position on that grid.
+export function gridDate({ start, frequency, interval }, step) {
+  return addUnits(parseDate(start), frequency, step * interval);
+}
+
+export function occurrences({ start, frequency, interval, end, maxCount, starting }) {
+  const first = starting === "start" ? 0 : 1;
   const endDate = end ? parseDate(end) : null;
   const list = [];
 
   for (let n = 1; n <= maxCount; n++) {
-    const date = addUnits(startDate, frequency, n * interval);
+    const step = first + n - 1;
+    const date = gridDate({ start, frequency, interval }, step);
     if (endDate && date > endDate) break;
-    list.push({ n, date });
+    list.push({ n, step, date });
   }
   return list;
 }

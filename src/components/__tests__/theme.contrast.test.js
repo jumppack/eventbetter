@@ -58,6 +58,14 @@ describe.each(Object.entries(themes))("%s theme", (_name, t) => {
     expect(worst(t[token], bases)).toBeGreaterThanOrEqual(need);
   });
 
+  it("selected segment label meets AA on the link color", () => {
+    expect(ratio(parse(t.onLink).slice(0, 3), parse(t.link).slice(0, 3))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("selected choice border stands out from fields", () => {
+    expect(worst(t.link, fields)).toBeGreaterThanOrEqual(3);
+  });
+
   it("white button label meets AA at both gradient ends", () => {
     for (const end of [t.buttonFrom, t.buttonTo]) {
       expect(ratio([255, 255, 255], parse(end).slice(0, 3))).toBeGreaterThanOrEqual(4.5);

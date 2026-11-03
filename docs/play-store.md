@@ -32,10 +32,11 @@ and no server.
 >
 > FEATURES
 > • One real recurring event in Google Calendar, so deleting it there offers "All events" like any other series
-> • Title templates with placeholders: {name}, {count}, {ord} (1st, 2nd, 3rd), {elapsed}, {unit} and {units}
+> • Title templates with placeholders: {name}, {count}, {ord} (1st, 2nd, 3rd) and {units}
+> • Count up or down ("12 months remaining" … "1 month remaining"), and start numbering on the start date itself ("1st payment done")
 > • Repeat every few days, weeks, months or years; stop after a number of occurrences or on an end date
 > • Month ends handled correctly: a series starting on the 31st lands on the last day of shorter months
-> • Optional extra occurrence on the start date, like "Tuff Gym membership started"
+> • Optional titles for the start and end dates, like "Tuff Gym membership started" and "… ended"
 > • Live preview of the first titles as you type
 > • Reminders: a Google Calendar reminder plus an optional phone notification at 9:00 AM the day before
 > • Edit or delete a recurring event anytime, or delete them all at once

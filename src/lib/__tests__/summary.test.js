@@ -46,6 +46,19 @@ describe("summarize", () => {
     expect(s.next.title).toBe("Tuff Gym membership started");
   });
 
+  it("counts a renamed occurrence but not an extra end event", () => {
+    const list = buildOccurrences({
+      ...gym,
+      starting: "start",
+      startTitle: "{name} started",
+      endTitle: "{name} ended",
+    });
+    expect(list).toHaveLength(13);
+    const s = summarize(list, parseDate("2026-09-30"));
+    expect(s).toMatchObject({ done: 1, total: 12 });
+    expect(summarize(list, parseDate("2027-09-29")).next.title).toBe("Tuff Gym membership ended");
+  });
+
   it("uses the local date, whatever the time of day", () => {
     // 23:59 local on the occurrence date still counts it as done.
     const lateNight = new Date(2026, 9, 30, 23, 59);

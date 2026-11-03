@@ -64,7 +64,7 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 ## Why people will like it
 
 - **No new app to check.** The value lives in Google Calendar, where people already look. EventBetter is only needed to create, edit or delete.
-- **Correct dates, every time.** Month ends are handled properly: a series starting on the 31st lands on Feb 28/29, then back on the 31st. Leap days work. Tested across 16,000 date combinations and verified against Google's own engine.
+- **Correct dates, every time.** Month ends are handled properly: a series starting on the 31st lands on Feb 28/29, then back on the 31st. Leap days work. Tested across about 65,000 date combinations and verified against Google's own engine.
 - **Private by design.** No account, no server, no tracking of your calendar. Data goes only between your phone and Google.
 - **Safe with your calendar.** Everything goes into a separate "EventBetter" calendar; your existing events are never touched.
 - **Free.** One small banner ad on the list screen, nothing else.
@@ -79,7 +79,7 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 |---|---|
 | **Recurring event** | What the user creates, such as "Tuff Gym membership, monthly, 12 times". Called a *series* in code. |
 | **Occurrence** | One dated item of that recurring event in Google Calendar, each with its own title. |
-| **Start event** | Optional extra occurrence on the start date itself (for example "Tuff Gym membership started"). |
+| **Start and end titles** | Optional titles for the start date and the end date (for example "Tuff Gym membership started" / "… ended"). Each adds an extra event, or renames the occurrence already on that date. |
 | **EventBetter calendar** | A secondary Google calendar the app creates and owns. The app never reads or writes any other calendar. |
 
 ### 2. Screens
@@ -108,10 +108,14 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 | Repeats every *n* *unit* | One inline row; unit is day, week, month or year and pluralizes with *n* | 1 month |
 | End date (optional) | Stops occurrences after this date; has a **Clear** button | none |
 | Number of occurrences | Stops after this many, whichever comes first with the end date | 12 (max 500) |
-| Title template | Placeholders filled per occurrence, with a collapsible guide and examples | `{name}: {ord} {unit} over` |
-| Start date title (optional) | Adds the start event with `count = 0` | none |
+| Count | Segmented control: **Up** (1, 2, 3) or **Down** (12, 11, 10) | Up |
+| Starting | Radio cards: **On the start date** or **1 month later** (follows the repeat row), each showing the date its 1st occurrence lands on | 1 month later |
+| Title template | Placeholders filled per occurrence, with a collapsible guide and examples | `{name}: {ord} {units} over` |
+| Start date title (optional) | Title for the start date: adds an extra event there, or renames the 1st occurrence if it's on the start date | none |
+| End date title (optional) | Title for the date one period after the last "start date" occurrence, or the last occurrence itself with "1 month later": adds or renames in the same way | none |
 
-- **Live preview** of the first three dates and titles updates as the user types.
+- **Live preview** updates as the user types: the first two items, "… n more" and the last one, with extra events labelled.
+- The help text under the start and end titles shows the actual date and whether that title adds an event or renames one.
 - Inline, per-field validation; empty optional fields fall back to defaults.
 - Creation shows step-by-step progress (renaming many occurrences takes a few seconds) and disables the button while it runs; leaving the screen mid-way is blocked.
 - Duplicate protection: the same name, start date, frequency and interval can't be created twice.
@@ -131,23 +135,23 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 | Placeholder | Meaning | Example |
 |---|---|---|
 | `{name}` | The Title field | Tuff Gym membership |
-| `{count}` | Occurrence number | 1, 2, 3 |
-| `{ord}` | Occurrence number as an ordinal | 1st, 2nd, 3rd, 11th, 12th, 13th, 21st |
-| `{elapsed}` | count × repeat-every | every 3 months: 3, 6, 9 |
-| `{unit}` | day, week, month or year | month |
-| `{units}` | unit pluralized to match `{elapsed}` | month, months |
+| `{count}` | Occurrence number, counted up or down | 1, 2, 3 (or 12, 11, 10) |
+| `{ord}` | The same number as an ordinal | 1st, 2nd, 3rd, 11th, 12th, 13th, 21st |
+| `{units}` | day, week, month or year, matching the number before it | 1 month, 3 months, 3rd month |
 
-Unknown placeholders are left as literal text. Examples:
+Unknown placeholders are left as literal text. `{count}` counts occurrences, not time: with Repeats every 3 months, write your own word ("quarter") instead of `{units}`. Templates from older versions that use `{unit}` or `{elapsed}` keep working. Examples:
 
-- `{name}: {ord} {unit} over` → *Tuff Gym membership: 3rd month over*
-- `{name}: {elapsed} {units} done` → *Tuff Gym membership: 3 months done*
-- `{name}: {ord} renewal, {elapsed} {units} in` (every 3 months) → *Tuff Gym membership: 2nd renewal, 6 months in*
+- `{name}: {ord} {units} over` → *Tuff Gym membership: 3rd month over*
+- `{name}: {ord} payment done`, Starting on the start date → *Rent: 1st payment done* on the day of the first payment
+- `{name}: {count} {units} remaining`, Count down, Starting on the start date, End date title `{name} ended` → *12 months remaining* … *1 month remaining*, then *Tuff Gym membership ended*
 
 ### 4. Scheduling rules
 
 - Dates are calendar dates in the user's local time zone, never shifted by UTC conversion. This is tested in India (IST, +05:30), UTC, Los Angeles and Auckland.
 - Monthly and yearly occurrences are computed from the **original start date** and clamp to the month's last day (Jan 31 → Feb 28/29 → Mar 31).
-- Occurrences are all-day events. They stop at whichever comes first: the end date or the number of occurrences.
+- Occurrences are all-day events on a grid: the start date, then one repeat period apart. Numbered occurrences take grid steps 1…N ("1 month later") or 0…N−1 ("On the start date"), and stop at whichever comes first: the end date or the number of occurrences.
+- Counting down numbers them N…1, where N is the number left after the end date cut.
+- The start and end titles belong to grid steps 0 and N.
 - In Google Calendar, each recurring event is a single RRULE series (`FREQ`, `INTERVAL`, `COUNT`, plus `BYMONTHDAY…;BYSETPOS=-1` for month-end and leap-day starts). Before titles are written, the app checks that Google's generated dates match its own plan exactly, and refuses to continue if they don't.
 
 ### 5. Reminders
@@ -271,7 +275,7 @@ npm test
 ```
 
 Every suite runs in Asia/Kolkata, UTC, America/Los_Angeles and Pacific/Auckland. The suite includes:
-- RRULE expansion checks over about 16,000 series
+- RRULE expansion checks over about 65,000 series
 - a WCAG AA contrast test for both themes
 - ad-isolation and terminology guards
 - website policy checks

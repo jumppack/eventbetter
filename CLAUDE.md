@@ -49,23 +49,28 @@ Put this in `src/lib/` as pure functions with no React or network imports, fully
 | Placeholder | Meaning | Example |
 |---|---|---|
 | `{name}` | Recurring event name (the Title field) | Tuff Gym membership |
-| `{count}` | Occurrence number | 1, 2, 3 |
-| `{ord}` | Occurrence number as an ordinal | 1st, 2nd, 3rd (11th, 12th, 13th, 21st, 22nd…) |
-| `{elapsed}` | count × repeat-every | quarterly: 3, 6, 9 |
-| `{unit}` | day, week, month or year | month |
-| `{units}` | unit pluralized to match `{elapsed}` | 1 month, 2 months |
+| `{count}` | The occurrence's number, counted up or down | 1, 2, 3 (or 12, 11, 10) |
+| `{ord}` | The same number as an ordinal | 1st, 2nd, 3rd (11th, 12th, 13th, 21st, 22nd…) |
+| `{units}` | day, week, month or year, agreeing with the number placeholder before it | `{count} {units}`: 1 month, 3 months; `{ord} {units}`: 3rd month |
 
-Unknown placeholders are left as literal text. Default template: `{name}: {ord} {unit} over`. An optional start event template (for example `{name} started`) adds an extra occurrence on the start date itself, using `count = 0`.
+Unknown placeholders are left as literal text. Default template: `{name}: {ord} {units} over`. `{count}` counts occurrences, not time, so with Repeats every > 1 the guide suggests writing your own word ("quarter"). Templates saved before milestone 8 may still use `{unit}` (always singular) and `{elapsed}` (count × repeat-every, which `{units}` then agrees with); both still render but aren't documented, and editing an older event turns `{unit}` into `{units}`.
+
+### Numbering (milestone 8)
+
+- **Count:** `direction` is `up` (1…N) or `down` (N…1). N is the number of numbered occurrences after the End date cut.
+- **Starting:** dates sit on a grid: the start date is step 0, then one repeat period apart. `starting: "later"` (default, today's behaviour) puts numbered occurrences on steps 1…N ("1st month over"); `starting: "start"` puts them on steps 0…N-1 ("1st payment done" on the start date).
+- **Start date title / End date title** (both optional) are the titles shown on step 0 and step N. If a numbered occurrence already falls there, the title replaces its title; otherwise it adds one extra event there. In these titles `{count}` is 0 (start) or N (end). With no numbered occurrences, only the start title can appear. The end event may fall after the optional End date: it marks the end of the last period.
+- Every item stays on the grid and the set is contiguous, so one RRULE with `COUNT` = all items still describes the series.
 
 ### Dates
 
 - Parse `YYYY-MM-DD` as a local date. Never use `new Date("YYYY-MM-DD")`, which parses as UTC and can shift the day.
 - Monthly and yearly occurrences are computed from the original start date, not the previous occurrence, and clamp to the last day of the month (Jan 31 gives Feb 28/29, then Mar 31).
-- Occurrences stop at whichever comes first: the end date (optional) or the number of events (default 12).
+- Numbered occurrences stop at whichever comes first: the end date (optional) or the number of events (default 12).
 
 ### Recurrence rule
 
-- `FREQ` = DAILY, WEEKLY, MONTHLY or YEARLY, `INTERVAL` = repeat-every, and always `COUNT` = total occurrences (including the start event, if any). Never use `UNTIL`, because the end-date/count logic is resolved into `COUNT` beforehand.
+- `FREQ` = DAILY, WEEKLY, MONTHLY or YEARLY, `INTERVAL` = repeat-every, and always `COUNT` = total items (including any extra start or end event). Never use `UNTIL`, because the end-date/count logic is resolved into `COUNT` beforehand.
 - Monthly with start day 29–31: add `BYMONTHDAY=28,…,<day>;BYSETPOS=-1` so short months clamp instead of being skipped.
 - Yearly starting Feb 29: add `BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1`.
 - Write a test proving the occurrence dates Google generates (via the instances endpoint) match `occurrences()` for a series starting on the 31st. If Google doesn't honor `BYSETPOS` as expected, stop and tell me. Verified 2026-09-30 on a real account: monthly from Jan 31 and yearly from Feb 29 both match. `calendarApi.live.test.js` (`npm run test:live`) is the repeatable version, and `create()` also refuses any series whose dates differ from the plan.
@@ -100,10 +105,11 @@ Series lookup uses `events.list` with `privateExtendedProperty` and filters out 
    - Repeat every
    - End date (optional)
    - Number of events to create (default 12)
+   - Numbering: Count (segmented Up "1, 2, 3" / Down "12, 11, 10") and Starting (radio cards "On the start date" / "1 month later", each showing the date its 1st occurrence lands on)
    - Title template, with the collapsible placeholder guide
-   - Start date title (optional)
+   - Start date title (optional) and End date title (optional), whose help text shows the date and whether the title adds an event or renames one
 
-   There's no calendar field, because the app always uses its own calendar. Add a live preview of the first three generated titles and dates as the user types. Edit mode shows a Delete button.
+   There's no calendar field, because the app always uses its own calendar. Add a live preview as the user types: the first two items, "… n more" and the last one, with extra events labelled. Edit mode shows a Delete button.
 4. **Settings:** signed-in account and sign out, "Manage ad privacy choices" (the consent SDK's privacy options form), links to the privacy policy and homepage, and "Disconnect Google account" (revoke access and clear local state), plus the app version and open-source licenses.
 
 Show clear progress while a series is being created, because patching many occurrences takes several seconds. Disable the submit button while it runs.
@@ -204,16 +210,16 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 ## Implementation notes (decided during build)
 
 - The deleted Config.gs defaulted `maxCount` to 24, superseded by this spec's 12.
-- `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by both create and the live preview), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field for future migrations.
+- `src/lib/series.js` holds `keyFor`, `buildOccurrences` (titles and dates, used by create, the list, reminders and the live preview; each item has `step`, `number` and `numbered`), `planSeries` (items, first date, RRULE, extended properties) and `encodeConfig`/`decodeConfig`. `ebConfig` carries a `v` version field: version 2 (milestone 8) adds `direction`, `starting` and `endTitle`; version 1 decodes as up, later, no end title.
 - Extended property values are capped at 1024 characters, and longer values are silently truncated by the API. `planSeries` measures UTF-8 bytes (never fewer than characters) and throws `PropertyTooLargeError`.
 - `MAX_COUNT = 500` caps the number of events. Each occurrence after the first is patched separately, so this bounds creation time and quota use.
-- `rrule` (npm, dev dependency only) powers `rrule.expansion.test.js`, which expands every generated RRULE for ~16,000 series (every start day in 2027 and 2028, all frequencies, several intervals, with and without a start event) and checks the dates match `buildOccurrences()`. It's an offline safety net; the live Google instances test remains authoritative.
+- `rrule` (npm, dev dependency only) powers `rrule.expansion.test.js`, which expands every generated RRULE for ~65,000 series (every start day in 2027 and 2028, all frequencies, several intervals, both Starting options, with and without start and end titles) and checks the dates match `buildOccurrences()`. It's an offline safety net; the live Google instances test remains authoritative.
 - India is a primary market. `npm test` runs every suite in four time zones (`jest.config.js` projects): Asia/Kolkata (IST, +05:30, where local midnight is the previous UTC day), UTC, America/Los_Angeles and Pacific/Auckland. `jest/timezone-environment.js` sets `TZ` on the real `process.env`, because test files only see a sandboxed copy. `timezone.test.js` asserts each zone is really applied. Never use `toISOString()` or `new Date("YYYY-MM-DD")` for calendar dates.
 - Form UI (pulled forward from milestone 3 at the user's request): `src/components/SeriesForm.js` is shared by add and edit, with fields and help text based on `Index.html` and a live preview of the first 3 titles. "Repeats every [n] [unit]" is one inline row (unit pluralizes with n; units ordered day, week, month, year; monthly stays the default). `@react-native-community/datetimepicker` (approved) provides the native Android date dialog through `DateTimePickerAndroid.open`; the optional End date has a "Clear" button. Frequency uses a JS bottom sheet, not a native picker.
 - Glass look without new packages: `src/components/theme.js` holds light and dark tokens based on the prototype's. `Glass.js` draws the background and blobs with RN gradients and uses `boxShadow`, both of which need the New Architecture. In RN 0.86 the gradient prop is `experimental_backgroundImage`; plain `backgroundImage` is silently ignored. Real backdrop blur (`expo-blur`) is still milestone 6.
-- Contrast: every text/background pair meets WCAG AA in both themes (4.5:1 text and placeholders, 3:1 field borders). `theme.contrast.test.js` composites the translucent layers over the background's lightest and darkest spots and enforces this, so check it whenever tokens change. Use `link` (not `accent`) for text-colored accents, `fieldBorder` for inputs, and `buttonFrom`/`buttonTo` for the primary button.
+- Contrast: every text/background pair meets WCAG AA in both themes (4.5:1 text and placeholders, 3:1 field borders). `theme.contrast.test.js` composites the translucent layers over the background's lightest and darkest spots and enforces this, so check it whenever tokens change. Use `link` (not `accent`) for text-colored accents, `fieldBorder` for inputs, `buttonFrom`/`buttonTo` for the primary button, and `onLink` for text on a `link`-filled surface (the selected segment in `SegmentedField`).
 - Edit order (milestone 3): `update()` creates the new series first (the old one doesn't count as a duplicate), then deletes the old one, so a failed edit never loses the recurring event. If the old one can't be removed, it throws `OldSeriesNotRemovedError` and both stay listed. Deletes treat 404/410 as already gone.
-- List progress (`src/lib/summary.js`): "5 of 12" counts numbered occurrences dated today or earlier; the start event isn't counted but can be "Next". Dates compare as local YYYY-MM-DD strings. Series whose `ebConfig` can't be read are still listed and deletable, but not editable. `list()` never creates the calendar.
+- List progress (`src/lib/summary.js`): "5 of 12" counts numbered occurrences dated today or earlier (a renamed one still counts); extra start or end events aren't counted but can be "Next". Dates compare as local YYYY-MM-DD strings. Series whose `ebConfig` can't be read are still listed and deletable, but not editable. `list()` never creates the calendar.
 - `SeriesProvider` caches the list for the edit screen and remounts per session so another account's data never shows.
 - Open-source licenses: `npm run licenses` regenerates `src/config/licenses.json` from the Android bundle's source map, so only JS that actually ships is listed, plus a hand-kept list of native Android libraries in `scripts/generate-licenses.js`. Rerun after adding or upgrading a dependency.
 - Settings' "Manage ad privacy choices" arrives with the consent SDK in milestone 5. The privacy policy and homepage links point at `src/config/links.js`; the pages themselves come in milestone 7.
@@ -231,6 +237,7 @@ Work in this order. Stop at the end of each milestone, summarize what was done, 
 - Production (milestone 7.1): `eas.json` production builds an `app-bundle` with `autoIncrement` (remote version codes); `eas submit --profile production` uploads a **draft** to the closed-testing track (`alpha`). Play's first release must be uploaded manually. All EAS profiles share one upload keystore (SHA-1 `03:60:80:ED:…:C7:9B`); Play App Signing re-signs releases, so its SHA-1 needs its own Android OAuth client. Dev-only UI (test reminder, raw error codes) is gated on `__DEV__`, which is false in release builds. `app.json` `android.blockedPermissions` drops storage and overlay permissions the app never uses. Store graphics (`assets/store/`) come from `scripts/generate-icons.py` using Pillow's bundled CC0 font; Play listing text and form answers are in `docs/play-store.md`.
 - Store screenshots (milestone 7.2): `python3 scripts/frame-screenshots.py` frames `screenshots/raw/` (gitignored, root only) onto 1080x1920 with captions into `assets/store/screenshots/`. Captured on an API 36 emulator with the review account, SystemUI demo mode for the status bar, the Test Ad banner cropped, and no account email in frame. `src/__tests__/terminology.test.js` fails if "subscribe/subscription" reappears in `src` (the legacy calendar description excepted).
 - Play status (2026-10-06): closed testing release (versionCode 4) sent for review with 15 testers on the list; the Play app signing SHA-1 is registered as a third Android OAuth client (Play Console now shows it under Protected with Play → Play Store protection → Manage Play app signing). The advertising ID declaration must be saved before a release can be sent for review.
+- Numbering form (milestone 8): `FormFields.js` adds `SegmentedField` (short side-by-side options with a hint line) and `ChoiceCards` (stacked radio cards with a detail line). `SeriesForm` computes the dates shown in the Starting options and the start/end title help from `occurrences()` and `gridDate()`, so they follow the start date, repeat row and End date.
 - `validate()` returns `{ sub, errors, valid }` with per-field errors for the form. `normalize()` throws a `ValidationError` carrying the same errors.
 
 ## Working style

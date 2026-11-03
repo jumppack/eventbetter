@@ -22,8 +22,11 @@ describe("validate", () => {
       interval: 1,
       end: "",
       maxCount: 12,
-      title: "{name}: {ord} {unit} over",
+      direction: "up",
+      starting: "later",
+      title: "{name}: {ord} {units} over",
       startTitle: "",
+      endTitle: "",
       description: "",
     });
   });
@@ -35,10 +38,22 @@ describe("validate", () => {
     expect(sub.maxCount).toBe(6);
   });
 
-  it("keeps the template and start title verbatim", () => {
-    const { sub } = validate({ ...base, title: " {name} #{count} ", startTitle: "{name} started" });
+  it("keeps the template, start title and end title verbatim", () => {
+    const { sub } = validate({
+      ...base,
+      title: " {name} #{count} ",
+      startTitle: "{name} started",
+      endTitle: "{name} ended ",
+    });
     expect(sub.title).toBe(" {name} #{count} ");
     expect(sub.startTitle).toBe("{name} started");
+    expect(sub.endTitle).toBe("{name} ended ");
+  });
+
+  it("accepts both count directions and starting options", () => {
+    const { sub, valid } = validate({ ...base, direction: "down", starting: "start" });
+    expect(valid).toBe(true);
+    expect(sub).toMatchObject({ direction: "down", starting: "start" });
   });
 
   it.each([
@@ -54,6 +69,8 @@ describe("validate", () => {
     [{ maxCount: String(MAX_COUNT + 1) }, "maxCount"],
     [{ end: "2026-09-29" }, "end"],
     [{ end: "not-a-date" }, "end"],
+    [{ direction: "sideways" }, "direction"],
+    [{ starting: "tomorrow" }, "starting"],
   ])("rejects %p", (override, field) => {
     const { errors, valid } = validate({ ...base, ...override });
     expect(valid).toBe(false);

@@ -339,7 +339,7 @@ These regenerate, in order: the app icons, splash screen, notification icon, Pla
 - [x] Website, privacy policy, verified OAuth branding
 - [x] Google Play closed testing (October 2026)
 - [x] Numbering: count up or down, start on the start date, end title (1.1.0)
-- [ ] Event colors (in progress)
+- [x] Event colors: pick a color per recurring event (1.2.0)
 - [ ] Production release on Google Play
 - [ ] Ideas under consideration: home-screen widget, more reminder options, localization (Hindi first)
 

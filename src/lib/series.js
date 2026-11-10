@@ -13,6 +13,7 @@ const CONFIG_FIELDS = [
   "maxCount",
   "direction",
   "starting",
+  "color",
   "title",
   "startTitle",
   "endTitle",
@@ -65,17 +66,29 @@ export function planSeries(sub) {
     items,
     firstDate: items[0].date,
     rrule: rrule({ ...sub, count: items.length }),
-    properties: {
-      ebKey: checkedValue("ebKey", keyFor(sub)),
-      ebName: checkedValue("ebName", sub.name),
-      ebConfig: checkedValue("ebConfig", encodeConfig(sub)),
-    },
+    properties: propertiesFor(sub),
   };
 }
 
+// The private extended properties every series carries (see planSeries).
+export function propertiesFor(sub) {
+  return {
+    ebKey: checkedValue("ebKey", keyFor(sub)),
+    ebName: checkedValue("ebName", sub.name),
+    ebConfig: checkedValue("ebConfig", encodeConfig(sub)),
+  };
+}
+
+// True when two normalized settings differ at most in color, so a color change
+// can update the series in place instead of recreating it.
+export function sameExceptColor(a, b) {
+  return CONFIG_FIELDS.every((field) => field === "color" || a[field] === b[field]);
+}
+
 // The Calendar API resource for the recurring master. Occurrences after the
-// first are renamed afterwards, one patch each.
-export function toSeriesEvent(plan) {
+// first are renamed afterwards, one patch each. `color` is the event's color
+// fields, `{ eventLabelId }` or `{ colorId }`, resolved by the service.
+export function toSeriesEvent(plan, color = {}) {
   const [first] = plan.items;
   return {
     summary: first.title,
@@ -88,6 +101,7 @@ export function toSeriesEvent(plan) {
       overrides: [{ method: "popup", minutes: REMINDER_MINUTES }],
     },
     extendedProperties: { private: plan.properties },
+    ...color,
   };
 }
 
@@ -98,14 +112,15 @@ export function encodeConfig(sub) {
 }
 
 // Version 1 predates numbering options: it always counted up from one
-// period after the start date, with no end title.
+// period after the start date, with no end title. Settings without a color
+// (anything saved before colors) get "", meaning Calendar's own color.
 export function decodeConfig(json) {
   const { v, ...config } = JSON.parse(json);
-  if (v === 1) return { ...config, direction: "up", starting: "later", endTitle: "" };
+  if (v === 1) return { ...config, direction: "up", starting: "later", endTitle: "", color: "" };
   if (v !== CONFIG_VERSION) {
     throw new Error(`Unsupported event config version: ${v}`);
   }
-  return config;
+  return { ...config, color: config.color ?? "" };
 }
 
 export class PropertyTooLargeError extends Error {

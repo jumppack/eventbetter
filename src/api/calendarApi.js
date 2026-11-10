@@ -79,6 +79,10 @@ export function createCalendarApi({ getAccessToken, fetchImpl = fetch, sleep = d
 
     listCalendarList: () => paginate("/users/me/calendarList", { maxResults: 250 }),
 
+    // Updates calendar metadata. Event labels (colors) live in
+    // `labelProperties.eventLabels`, and patch replaces that whole array.
+    patchCalendar: (calendarId, body) => request("PATCH", cal(calendarId), { body }),
+
     deleteCalendar: (calendarId) => request("DELETE", cal(calendarId)),
 
     // Recurring masters and their modified instances are both returned; the
@@ -95,13 +99,15 @@ export function createCalendarApi({ getAccessToken, fetchImpl = fetch, sleep = d
       }
     },
 
-    insertEvent: (calendarId, body) => request("POST", `${cal(calendarId)}/events`, { body }),
+    // `query` carries eventLabelVersion=1 when the body sets eventLabelId.
+    insertEvent: (calendarId, body, query) =>
+      request("POST", `${cal(calendarId)}/events`, { body, query }),
 
     listInstances: (calendarId, eventId) =>
       paginate(`${event(calendarId, eventId)}/instances`, { maxResults: 2500 }),
 
-    patchEvent: (calendarId, eventId, body) =>
-      request("PATCH", event(calendarId, eventId), { body }),
+    patchEvent: (calendarId, eventId, body, query) =>
+      request("PATCH", event(calendarId, eventId), { body, query }),
 
     deleteEvent: (calendarId, eventId) => request("DELETE", event(calendarId, eventId)),
   };

@@ -1,4 +1,4 @@
-import { createFakeCalendarApi, createMemoryStorage } from "../../../jest/fakeCalendarApi";
+import { DEFAULT_LABEL_HEXES, createFakeCalendarApi, createMemoryStorage } from "../../../jest/fakeCalendarApi";
 import { WRITE_DELAY_MS } from "../../config/defaults";
 import { ValidationError } from "../../lib/validate";
 import { parseDate, toDateString } from "../../lib/schedule";
@@ -16,8 +16,9 @@ function setup({
   canListCalendars = true,
   calendarList,
   today = "2026-10-04",
+  labelMode,
 } = {}) {
-  const api = createFakeCalendarApi({ calendarList });
+  const api = createFakeCalendarApi({ calendarList, labelMode });
   const sleeps = [];
   const service = createSeriesService({
     api,
@@ -373,5 +374,225 @@ describe("calendars created before the rename", () => {
     ];
     const { service } = setup({ calendarList });
     expect(await service.ensureCalendar()).toBe("old");
+  });
+});
+
+
+describe("color", () => {
+  const GRAPE = "#8e24aa";
+  const BLUE = "#4285f4";
+  const TONE = "#123abc";
+  const calls = (api, name) => api.calls.filter(([n]) => n === name);
+  const labelId = (api, hex) =>
+    [...api.calendars.keys()].flatMap((id) => api.labelsOf(id)).find((l) => l.backgroundColor === hex)?.id;
+
+  describe("on an account with event labels", () => {
+    it("gives a new event the default Grape through its existing label", async () => {
+      const { api, service } = setup();
+      const result = await service.create(gym);
+
+      const [, , body, query] = calls(api, "insertEvent")[0];
+      expect(body.eventLabelId).toBe(labelId(api, GRAPE));
+      expect(body.colorId).toBeUndefined();
+      expect(query).toEqual({ eventLabelVersion: 1 });
+      expect(calls(api, "patchCalendar")).toHaveLength(0);
+
+      const instances = await api.listInstances(result.calendarId, result.seriesId);
+      expect(instances.every((i) => i.eventLabelId === labelId(api, GRAPE))).toBe(true);
+    });
+
+    it("adds a missing label once, keeps the existing ones and reuses it", async () => {
+      const { api, service } = setup();
+      await service.create({ ...gym, color: TONE });
+      await service.create({ ...gym, name: "Other", color: TONE });
+
+      const labels = api.labelsOf([...api.calendars.keys()][0]);
+      expect(labels).toHaveLength(DEFAULT_LABEL_HEXES.length + 1);
+      expect(labels.filter((l) => l.backgroundColor === TONE)).toHaveLength(1);
+      expect(calls(api, "patchCalendar")).toHaveLength(1);
+      expect(labels.at(-1).id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it("adds the label on a calendar that predates the defaults", async () => {
+      const { api, service } = setup({ labelMode: "empty" });
+      await service.create({ ...gym, color: BLUE });
+      expect(api.labelsOf([...api.calendars.keys()][0]).map((l) => l.backgroundColor)).toEqual([BLUE]);
+    });
+
+    it("handles two creations at once without losing a label", async () => {
+      const { api, service } = setup({ labelMode: "empty" });
+      await service.ensureCalendar();
+      await Promise.all([
+        service.create({ ...gym, name: "A", color: BLUE }),
+        service.create({ ...gym, name: "B", color: TONE }),
+      ]);
+      const hexes = api.labelsOf([...api.calendars.keys()][0]).map((l) => l.backgroundColor).sort();
+      expect(hexes).toEqual([BLUE, TONE].sort());
+    });
+
+    it("sends no color at all for an event without one", async () => {
+      const { api, service } = setup();
+      await service.create({ ...gym, color: "" });
+      const [, , body, query] = calls(api, "insertEvent")[0];
+      expect(body.eventLabelId).toBeUndefined();
+      expect(body.colorId).toBeUndefined();
+      expect(query).toBeUndefined();
+      expect(calls(api, "patchCalendar")).toHaveLength(0);
+    });
+
+    it("lists the color with the event", async () => {
+      const { service } = setup();
+      await service.create({ ...gym, color: BLUE });
+      await service.create({ ...gym, name: "Plain", color: "" });
+      const byName = Object.fromEntries((await service.list()).map((s) => [s.name, s.color]));
+      expect(byName).toEqual({ "Tuff Gym membership": BLUE, Plain: "" });
+    });
+
+    it("falls back to the classic color if Google drops the label after saving", async () => {
+      const { api, service } = setup();
+      const insert = api.insertEvent;
+      api.insertEvent = (calendarId, body, query) => {
+        const { eventLabelId, ...withoutLabel } = body;
+        return insert(calendarId, withoutLabel, query);
+      };
+      const result = await service.create(gym);
+
+      const patch = calls(api, "patchEvent").find(([, , id]) => id === result.seriesId);
+      expect(patch[3]).toEqual({ colorId: "3" });
+      expect(await service.getColorSupport()).toBe(false);
+    });
+  });
+
+  describe.each([["silent"], ["rejecting"]])("on an account without event labels (%s)", (labelMode) => {
+    it("uses the classic color instead and still creates the event", async () => {
+      const { api, service } = setup({ labelMode });
+      const result = await service.create(gym);
+
+      const [, , body, query] = calls(api, "insertEvent")[0];
+      expect(body.colorId).toBe("3");
+      expect(body.eventLabelId).toBeUndefined();
+      expect(query).toBeUndefined();
+      expect(result.count).toBe(12);
+    });
+
+    it("maps a color outside the classic 11 to the nearest one", async () => {
+      const { api, service } = setup({ labelMode });
+      await service.create({ ...gym, color: "#3a4fb0" });
+      expect(calls(api, "insertEvent")[0][2].colorId).toBe("9");
+    });
+
+    it("stops trying labels once it knows", async () => {
+      const { api, service } = setup({ labelMode });
+      await service.create(gym);
+      await service.create({ ...gym, name: "Other", color: BLUE });
+      expect(calls(api, "patchCalendar")).toHaveLength(1);
+    });
+  });
+
+  describe("getColorSupport", () => {
+    it("is true from a non-empty label list, without writing", async () => {
+      const { api, service } = setup();
+      expect(await service.getColorSupport()).toBe(true);
+      expect(calls(api, "patchCalendar")).toHaveLength(0);
+    });
+
+    it("tries the default color on an empty list, and that proves support", async () => {
+      const { api, service } = setup({ labelMode: "empty" });
+      expect(await service.getColorSupport()).toBe(true);
+      expect(calls(api, "patchCalendar")).toHaveLength(1);
+    });
+
+    it.each([["silent"], ["rejecting"]])("is false when labels are ignored or rejected (%s)", async (labelMode) => {
+      const { service } = setup({ labelMode });
+      expect(await service.getColorSupport()).toBe(false);
+    });
+
+    it("answers once and shares one check between simultaneous callers", async () => {
+      const { api, service } = setup({ labelMode: "empty" });
+      const answers = await Promise.all([service.getColorSupport(), service.getColorSupport()]);
+      expect(answers).toEqual([true, true]);
+      await service.getColorSupport();
+      expect(calls(api, "patchCalendar")).toHaveLength(1);
+    });
+  });
+
+  describe("changing only the color", () => {
+    async function seeded(color = GRAPE) {
+      const ctx = setup();
+      const created = await ctx.service.create({ ...gym, color });
+      const [series] = await ctx.service.list();
+      return { ...ctx, created, series };
+    }
+
+    it("patches the series master once instead of recreating it", async () => {
+      const { api, service, created, series } = await seeded();
+      const before = api.calls.length;
+      const result = await service.update(series.id, { ...series.config, color: BLUE }, { previous: series.config });
+
+      expect(result.seriesId).toBe(created.seriesId);
+      const after = api.calls.slice(before).filter(([n]) => n !== "getCalendar" && n !== "listCalendarList");
+      expect(after.map(([n]) => n)).toEqual(["patchEvent"]);
+      const [, , id, body, query] = after[0];
+      expect(id).toBe(created.seriesId);
+      expect(body.eventLabelId).toBe(labelId(api, BLUE));
+      expect(query).toEqual({ eventLabelVersion: 1 });
+      expect(JSON.parse(body.extendedProperties.private.ebConfig).color).toBe(BLUE);
+      expect(body.extendedProperties.private.ebKey).toBe("Tuff Gym membership|2026-09-30|monthly|1");
+    });
+
+    it("shows the new color in the list and on the renamed occurrences", async () => {
+      const { api, service, created, series } = await seeded();
+      await service.update(series.id, { ...series.config, color: BLUE }, { previous: series.config });
+
+      expect((await service.list())[0].color).toBe(BLUE);
+      const instances = await api.listInstances(created.calendarId, created.seriesId);
+      expect(instances.every((i) => i.eventLabelId === labelId(api, BLUE))).toBe(true);
+    });
+
+    it("does nothing when nothing changed", async () => {
+      const { api, service, series } = await seeded();
+      const before = api.calls.length;
+      await service.update(series.id, { ...series.config }, { previous: series.config });
+      expect(api.calls.slice(before).map(([n]) => n).filter((n) => /insert|patch|delete/.test(n))).toEqual([]);
+    });
+
+    it("recreates the event when anything else changed too", async () => {
+      const { api, service, created, series } = await seeded();
+      const result = await service.update(
+        series.id,
+        { ...series.config, color: BLUE, title: "{name}: {ord} {units} done" },
+        { previous: series.config },
+      );
+      expect(result.seriesId).not.toBe(created.seriesId);
+      expect(calls(api, "deleteEvent").map(([, , id]) => id)).toContain(created.seriesId);
+    });
+
+    it("recreates the event if the quick patch fails", async () => {
+      const { api, service, created, series } = await seeded();
+      const patch = api.patchEvent;
+      api.patchEvent = async (calendarId, eventId, ...rest) => {
+        if (eventId === created.seriesId) throw Object.assign(new Error("boom"), { status: 500 });
+        return patch(calendarId, eventId, ...rest);
+      };
+      const result = await service.update(series.id, { ...series.config, color: BLUE }, { previous: series.config });
+      expect(result.seriesId).not.toBe(created.seriesId);
+      expect((await service.list()).map((s) => s.color)).toEqual([BLUE]);
+    });
+
+    it("recreates when editing without the previous settings (as before)", async () => {
+      const { service, created, series } = await seeded();
+      const result = await service.update(series.id, { ...series.config, color: BLUE });
+      expect(result.seriesId).not.toBe(created.seriesId);
+    });
+
+    it("uses the classic color on an account without labels", async () => {
+      const ctx = setup({ labelMode: "silent" });
+      await ctx.service.create({ ...gym, color: GRAPE });
+      const [series] = await ctx.service.list();
+      await ctx.service.update(series.id, { ...series.config, color: "#039be5" }, { previous: series.config });
+      const patch = calls(ctx.api, "patchEvent").find(([, , id]) => id === series.id);
+      expect(patch[3].colorId).toBe("7");
+      expect(patch[3].eventLabelId).toBeUndefined();
+    });
   });
 });

@@ -1,7 +1,17 @@
-import { CALENDAR_NAME, WRITE_DELAY_MS } from "../config/defaults";
+import { CALENDAR_NAME, DEFAULTS, WRITE_DELAY_MS } from "../config/defaults";
+import { classicIdFor, nearestClassic } from "../lib/color";
 import { toDateString } from "../lib/schedule";
-import { buildOccurrences, decodeConfig, keyFor, planSeries, toSeriesEvent } from "../lib/series";
+import {
+  buildOccurrences,
+  decodeConfig,
+  keyFor,
+  planSeries,
+  propertiesFor,
+  sameExceptColor,
+  toSeriesEvent,
+} from "../lib/series";
 import { compareSeries, describeFrequency, summarize } from "../lib/summary";
+import { uuid as defaultUuid } from "../lib/uuid";
 import { normalize } from "../lib/validate";
 
 const CALENDAR_ID_KEY = "eventbetter.calendarId";
@@ -39,6 +49,15 @@ export class OldSeriesNotRemovedError extends Error {
   }
 }
 
+// Thrown inside the service when the account doesn't take event labels (colors).
+class LabelsUnsupportedError extends Error {}
+
+// How Google may answer a labelProperties write on an account without the feature.
+const UNSUPPORTED_STATUSES = new Set([400, 403, 501]);
+
+const labelsOf = (calendar) => calendar?.labelProperties?.eventLabels ?? [];
+const findLabel = (labels, hex) => labels.find((l) => l.backgroundColor?.toLowerCase() === hex);
+
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Google answers 410 for an event that's already deleted.
@@ -53,6 +72,7 @@ export function createSeriesService({
   canListCalendars = false,
   sleep = defaultSleep,
   now = () => new Date(),
+  uuid = defaultUuid,
 }) {
   async function findOwnCalendar() {
     const storedId = await storage.getItem(CALENDAR_ID_KEY);
@@ -83,6 +103,91 @@ export function createSeriesService({
     return created.id;
   }
 
+  // Whether event labels work on this account: true, false, or null if not yet
+  // known. Learned by behavior, never by version, and kept for this session.
+  let labelSupport = null;
+  let supportCheck = null;
+  let labelQueue = Promise.resolve();
+
+  // Returns the id of the calendar's label with this color, adding one if
+  // needed. The label list is replaced as a whole on write, so it's always read
+  // first, and writes run one at a time.
+  function ensureLabel(calendarId, hex) {
+    const run = labelQueue.then(() => ensureLabelNow(calendarId, hex));
+    labelQueue = run.catch(() => {});
+    return run;
+  }
+
+  async function ensureLabelNow(calendarId, hex) {
+    const labels = labelsOf(await api.getCalendar(calendarId));
+    const existing = findLabel(labels, hex);
+    if (existing) {
+      labelSupport = true;
+      return existing.id;
+    }
+
+    try {
+      await api.patchCalendar(calendarId, {
+        labelProperties: { eventLabels: [...labels, { id: uuid(), backgroundColor: hex }] },
+      });
+    } catch (e) {
+      if (!UNSUPPORTED_STATUSES.has(e?.status)) throw e;
+      labelSupport = false;
+      throw new LabelsUnsupportedError();
+    }
+
+    // An account without the feature may accept the call and ignore it.
+    const stored = findLabel(labelsOf(await api.getCalendar(calendarId)), hex);
+    labelSupport = Boolean(stored);
+    if (!stored) throw new LabelsUnsupportedError();
+    return stored.id;
+  }
+
+  // Whether the account supports event labels. A non-empty label list proves it.
+  // An empty one is ambiguous (no feature, or a calendar older than the 24
+  // defaults), so the default color is added and read back to find out.
+  function getColorSupport() {
+    if (labelSupport !== null) return Promise.resolve(labelSupport);
+    supportCheck ??= (async () => {
+      const calendarId = await ensureCalendar();
+      if (labelsOf(await api.getCalendar(calendarId)).length) return (labelSupport = true);
+      try {
+        await ensureLabel(calendarId, DEFAULTS.color);
+      } catch (e) {
+        if (!(e instanceof LabelsUnsupportedError)) throw e;
+      }
+      return labelSupport === true;
+    })().finally(() => {
+      supportCheck = null;
+    });
+    return supportCheck;
+  }
+
+  // The fields that give an event its color: a label where supported, the
+  // nearest classic color otherwise. `label` is set when a label was used, so
+  // callers can check Google kept it.
+  async function resolveColor(calendarId, color) {
+    if (!color) return { body: {}, query: undefined, label: null };
+    if (labelSupport !== false) {
+      try {
+        const label = await ensureLabel(calendarId, color);
+        return { body: { eventLabelId: label }, query: { eventLabelVersion: 1 }, label };
+      } catch (e) {
+        if (!(e instanceof LabelsUnsupportedError)) throw e;
+      }
+    }
+    return { body: { colorId: classicColorId(color) }, query: undefined, label: null };
+  }
+
+  const classicColorId = (color) => classicIdFor(color) ?? nearestClassic(color).id;
+
+  // An account that dropped our label silently: fall back to the classic color.
+  async function settleColor(calendarId, event, color, hex) {
+    if (!color.label || event.eventLabelId === color.label) return;
+    labelSupport = false;
+    await api.patchEvent(calendarId, event.id, { colorId: classicColorId(hex) });
+  }
+
   async function findSeriesByKey(calendarId, key) {
     const items = await api.listEvents(calendarId, {
       privateExtendedProperty: `ebKey=${key}`,
@@ -104,10 +209,13 @@ export function createSeriesService({
     const existing = await findSeriesByKey(calendarId, keyFor(sub));
     if (existing && existing.id !== replacing) throw new SeriesExistsError(sub.name);
 
+    const color = await resolveColor(calendarId, sub.color);
+
     onProgress({ phase: "creating", done: 0, total });
-    const series = await api.insertEvent(calendarId, toSeriesEvent(plan));
+    const series = await api.insertEvent(calendarId, toSeriesEvent(plan, color.body), color.query);
 
     try {
+      await settleColor(calendarId, series, color, sub.color);
       const instances = await api.listInstances(calendarId, series.id);
       const byDate = matchInstances(plan.items, instances);
       if (!byDate) throw new SeriesMismatchError(total, instances.length);
@@ -136,7 +244,15 @@ export function createSeriesService({
   // Edit: occurrence titles are all custom, so there's no safe in-place
   // update. Create the new series first and remove the old one only after
   // that succeeds, so a failed edit never loses the recurring event.
+  //
+  // The exception is a change of color alone, which is one patch on the series
+  // master: its occurrences, renamed ones too, follow it. Pass the event's
+  // current settings as `previous` to allow that; if the patch fails for any
+  // reason the event is simply recreated.
   async function update(seriesId, input, options = {}) {
+    const quick = options.previous && (await recolor(seriesId, input, options.previous).catch(() => null));
+    if (quick) return quick;
+
     const result = await create(input, { ...options, replacing: seriesId });
     try {
       await api.deleteEvent(result.calendarId, seriesId);
@@ -144,6 +260,25 @@ export function createSeriesService({
       if (!isGone(e)) throw new OldSeriesNotRemovedError(result.name);
     }
     return result;
+  }
+
+  async function recolor(seriesId, input, previous) {
+    const sub = normalize(input);
+    if (!sub.color || !sameExceptColor(previous, sub)) return null;
+    const calendarId = await findOwnCalendar();
+    if (!calendarId) return null;
+
+    if (sub.color !== previous.color) {
+      const color = await resolveColor(calendarId, sub.color);
+      const series = await api.patchEvent(
+        calendarId,
+        seriesId,
+        { ...color.body, extendedProperties: { private: propertiesFor(sub) } },
+        color.query,
+      );
+      await settleColor(calendarId, { ...series, id: seriesId }, color, sub.color);
+    }
+    return { calendarId, seriesId, name: sub.name };
   }
 
   // Deleting the master removes every occurrence.
@@ -191,7 +326,7 @@ export function createSeriesService({
     return event && toSeries(event, now());
   }
 
-  return { ensureCalendar, findSeriesByKey, create, update, remove, removeAll, list, get };
+  return { ensureCalendar, findSeriesByKey, getColorSupport, create, update, remove, removeAll, list, get };
 }
 
 // A series we can't read the config of (hand-edited, or from a future
@@ -209,6 +344,7 @@ function toSeries(event, today) {
   return {
     ...base,
     config,
+    color: config.color,
     editable: true,
     frequencyLabel: describeFrequency(config),
     // Every dated item in Calendar, including the optional start event.

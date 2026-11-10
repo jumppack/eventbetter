@@ -4,7 +4,10 @@ import {
   encodeConfig,
   keyFor,
   planSeries,
+  propertiesFor,
   PropertyTooLargeError,
+  sameExceptColor,
+  toSeriesEvent,
 } from "../series";
 import { toDateString } from "../schedule";
 import { normalize } from "../validate";
@@ -185,5 +188,52 @@ describe("encodeConfig / decodeConfig", () => {
 
   it("rejects unknown versions", () => {
     expect(() => decodeConfig('{"v":99}')).toThrow(/version/);
+  });
+});
+
+describe("color in the saved settings", () => {
+  it("round-trips, and is not part of the duplicate key", () => {
+    const blue = { ...gym, color: "#4285f4" };
+    expect(decodeConfig(encodeConfig(blue)).color).toBe("#4285f4");
+    expect(keyFor(blue)).toBe(keyFor(gym));
+  });
+
+  it("reads settings saved before colors existed as 'no color'", () => {
+    const v2 = JSON.stringify({ v: 2, ...gym, color: undefined });
+    expect(decodeConfig(v2).color).toBe("");
+    expect(normalize(decodeConfig(v2)).color).toBe("");
+  });
+
+  it("stays version 2, so older app versions can still read it", () => {
+    expect(JSON.parse(encodeConfig(gym)).v).toBe(2);
+  });
+});
+
+describe("toSeriesEvent color fields", () => {
+  const plan = planSeries(gym);
+
+  it("adds the label or classic color it is given", () => {
+    expect(toSeriesEvent(plan, { eventLabelId: "u1" }).eventLabelId).toBe("u1");
+    expect(toSeriesEvent(plan, { colorId: "3" }).colorId).toBe("3");
+  });
+
+  it("adds nothing by default", () => {
+    const event = toSeriesEvent(plan);
+    expect(event).not.toHaveProperty("eventLabelId");
+    expect(event).not.toHaveProperty("colorId");
+  });
+});
+
+describe("propertiesFor / sameExceptColor", () => {
+  it("builds the same properties planSeries attaches", () => {
+    expect(propertiesFor(gym)).toEqual(planSeries(gym).properties);
+  });
+
+  it("tells a color-only change from any other", () => {
+    expect(sameExceptColor(gym, { ...gym, color: "#4285f4" })).toBe(true);
+    expect(sameExceptColor(gym, { ...gym })).toBe(true);
+    expect(sameExceptColor(gym, { ...gym, title: "x" })).toBe(false);
+    expect(sameExceptColor(gym, { ...gym, color: "#4285f4", endTitle: "ended" })).toBe(false);
+    expect(sameExceptColor(gym, { ...gym, maxCount: 6 })).toBe(false);
   });
 });

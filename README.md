@@ -66,6 +66,7 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 - **No new app to check.** The value lives in Google Calendar, where people already look. EventBetter is only needed to create, edit or delete.
 - **Correct dates, every time.** Month ends are handled properly: a series starting on the 31st lands on Feb 28/29, then back on the 31st. Leap days work. Tested across about 65,000 date combinations and verified against Google's own engine.
 - **Private by design.** No account, no server, no tracking of your calendar. Data goes only between your phone and Google.
+- **Color-coded.** Pick a color for each recurring event. It fills the tile in the app and colors the event in Google Calendar, so related things stand out at a glance.
 - **Safe with your calendar.** Everything goes into a separate "EventBetter" calendar; your existing events are never touched.
 - **Free.** One small banner ad on the list screen, nothing else.
 
@@ -95,6 +96,7 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
   - **frequency** ("Every week", "Every 3 months")
   - **progress** ("5 of 12 occurrences", counting numbered occurrences dated today or earlier) with a progress bar
   - **next occurrence** date
+- The card is filled with the event's color; text and progress bar switch between dark and white to stay readable.
 - Each card has **edit** and **delete** icons; tapping the card opens edit. Delete always confirms and states how many occurrences will be removed.
 - Pull to refresh, an explanatory empty state, and a floating **+** button.
 - A single anchored banner ad at the bottom of this screen only.
@@ -104,6 +106,7 @@ Because it's a genuine recurring series, it behaves like any other: it syncs to 
 | Field | Behaviour | Default |
 |---|---|---|
 | Title | Name of the recurring event | required |
+| Color | **Hue chips** (Red, Orange, Yellow, Green, Teal, Blue, Purple, Pink, Brown, Gray); the chosen hue shows a row of 7 tones. On accounts without Google's new labels, one row of the 11 classic Calendar colors | Grape (purple) |
 | Start date | Native Android date picker | today |
 | Repeats every *n* *unit* | One inline row; unit is day, week, month or year and pluralizes with *n* | 1 month |
 | End date (optional) | Stops occurrences after this date; has a **Clear** button | none |
@@ -145,7 +148,17 @@ Unknown placeholders are left as literal text. `{count}` counts occurrences, not
 - `{name}: {ord} payment done`, Starting on the start date → *Rent: 1st payment done* on the day of the first payment
 - `{name}: {count} {units} remaining`, Count down, Starting on the start date, End date title `{name} ended` → *12 months remaining* … *1 month remaining*, then *Tuff Gym membership ended*
 
-### 4. Scheduling rules
+### 4. Colors
+
+- Each recurring event has one color. It fills the event's tile in the app and colors its occurrences in Google Calendar. New events start on **Grape**, a purple that matches the app.
+- **Picker:** ten hue swatches. Tap one and its row of seven tones opens beneath it. The tones are evenly spaced in perceived lightness, and each row includes one of Google's own colors. Text on a colored tile is black or white, whichever is easier to read (at least 4.5:1). No sliders and no hex entry.
+- **How Google stores it:** a color is a *label* on the EventBetter calendar, and the event points at it. The app reuses a label when its color is already there and adds one otherwise, so it never touches labels you made yourself. It needs no extra permission.
+- **Accounts without labels:** the app checks what Google supports and falls back to the 11 classic Calendar colors.
+- **Changing a color** later is a single quick update to the series, with no recreate.
+- Events created before colors existed keep their current Calendar color. Opening one to edit starts it on Grape.
+- Details and what was verified: [`docs/event-labels.md`](docs/event-labels.md).
+
+### 5. Scheduling rules
 
 - Dates are calendar dates in the user's local time zone, never shifted by UTC conversion. This is tested in India (IST, +05:30), UTC, Los Angeles and Auckland.
 - Monthly and yearly occurrences are computed from the **original start date** and clamp to the month's last day (Jan 31 → Feb 28/29 → Mar 31).
@@ -154,7 +167,7 @@ Unknown placeholders are left as literal text. `{count}` counts occurrences, not
 - The start and end titles belong to grid steps 0 and N.
 - In Google Calendar, each recurring event is a single RRULE series (`FREQ`, `INTERVAL`, `COUNT`, plus `BYMONTHDAY…;BYSETPOS=-1` for month-end and leap-day starts). Before titles are written, the app checks that Google's generated dates match its own plan exactly, and refuses to continue if they don't.
 
-### 5. Reminders
+### 6. Reminders
 
 - **Google Calendar reminder** on every occurrence: a popup at **9:00 AM the day before**.
 - **Phone notifications** at the same time, such as "Tomorrow: Tuff Gym membership: 3rd month over":
@@ -163,14 +176,14 @@ Unknown placeholders are left as literal text. `{count}` counts occurrences, not
   - Notification permission is requested after the first recurring event is created, never at launch.
   - No exact-alarm permission is used, so Android may deliver a reminder a few minutes late.
 
-### 6. Ads and consent
+### 7. Ads and consent
 
 - One anchored banner on the home screen; no interstitials, no rewarded ads.
 - Google's consent form (UMP) runs before any ad loads. The ads SDK starts only if consent allows it.
 - **Google user data is never shared with the ad SDK or used for targeting.** No keywords and no content URLs are passed. All ad code is isolated in `src/ads/`, and a test fails if it ever imports calendar or auth code.
 - Development and preview builds always use Google's test ads.
 
-### 7. Privacy and permissions
+### 8. Privacy and permissions
 
 | Access | Why |
 |---|---|
@@ -183,19 +196,20 @@ Unknown placeholders are left as literal text. `{count}` counts occurrences, not
 - Both Calendar scopes are classified by Google as non-sensitive. The OAuth app is in production with verified branding.
 - Compliant with the Google API Services User Data Policy, including the Limited Use requirements. Full details are in the [privacy policy](https://jumppack.online/eventbetter/privacy/).
 
-### 8. Data stored
+### 9. Data stored
 
 | Where | What |
 |---|---|
-| Google Calendar (user's account) | The EventBetter calendar, its recurring events, and in private extended properties a dedupe key, the name and a compact copy of the form input (used to edit) |
+| Google Calendar (user's account) | The EventBetter calendar, its recurring events (with their color label), and in private extended properties a dedupe key, the name and a compact copy of the form input (used to edit). Colors the app uses are added to the calendar as labels |
 | On the phone (AsyncStorage) | The EventBetter calendar ID and the map of scheduled notifications |
 | Nowhere else | — |
 
-### 9. Out of scope for v1
+### 10. Out of scope for v1
 
 - iOS. The code avoids Android-only APIs where it costs nothing, but there's no iOS configuration.
 - Writing to calendars other than the app's own.
 - In-place editing of individual occurrences (edit recreates the series).
+- Free-form colors: sliders or hex entry. v1 offers a curated set of hues and tones.
 - Paid tiers, interstitial ads, accounts or sync beyond Google Calendar.
 
 ---
@@ -324,6 +338,8 @@ These regenerate, in order: the app icons, splash screen, notification icon, Pla
 - [x] Glass design, light and dark mode, AA contrast
 - [x] Website, privacy policy, verified OAuth branding
 - [x] Google Play closed testing (October 2026)
+- [x] Numbering: count up or down, start on the start date, end title (1.1.0)
+- [ ] Event colors (in progress)
 - [ ] Production release on Google Play
 - [ ] Ideas under consideration: home-screen widget, more reminder options, localization (Hindi first)
 

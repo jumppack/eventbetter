@@ -4,9 +4,10 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "rea
 
 import { BannerSlot } from "../components/BannerSlot";
 import { confirmDeleteSeries } from "../components/confirm";
-import { Fab, GlassCard, IconButton, PrimaryButton, Screen, StatusBox, TopBar } from "../components/Glass";
+import { ColorCard, Fab, GlassCard, IconButton, PrimaryButton, Screen, StatusBox, TopBar } from "../components/Glass";
 import { useSeries } from "../components/SeriesProvider";
 import { radius, useTheme } from "../components/theme";
+import { tileColors } from "../lib/color";
 
 const formatDate = (date) =>
   date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -78,6 +79,10 @@ export default function SeriesList() {
 // Tapping anywhere on the card opens edit; the icons are explicit shortcuts.
 function SeriesRow({ item, deleting, disabled, onDelete }) {
   const t = useTheme();
+  // Events with a color are drawn in it, with text, icons and progress chosen for contrast.
+  const tile = item.color ? tileColors(item.color) : null;
+  const Card = tile ? ColorCard : GlassCard;
+  const cardProps = tile ? { color: tile.background } : {};
   const details = item.editable
     ? `${item.frequencyLabel} · ${item.done} of ${item.total} occurrences`
     : "Settings unavailable, can only be deleted";
@@ -95,14 +100,14 @@ function SeriesRow({ item, deleting, disabled, onDelete }) {
       disabled={disabled}
       style={({ pressed }) => [styles.rowWrap, (pressed || deleting) && styles.pressed]}
     >
-      <GlassCard style={styles.row}>
+      <Card {...cardProps} style={styles.row}>
         <View style={styles.rowTop}>
           <View style={styles.rowText}>
-            <Text style={[styles.name, { color: t.text }]} numberOfLines={2}>
+            <Text style={[styles.name, { color: tile?.text ?? t.text }]} numberOfLines={2}>
               {item.name}
             </Text>
-            <Text style={[styles.meta, { color: t.muted }]}>{details}</Text>
-            {next ? <Text style={[styles.meta, { color: t.text }]}>{next}</Text> : null}
+            <Text style={[styles.meta, { color: tile?.text ?? t.muted }]}>{details}</Text>
+            {next ? <Text style={[styles.meta, { color: tile?.text ?? t.text }]}>{next}</Text> : null}
           </View>
           <View style={styles.actions}>
             {item.editable ? (
@@ -111,6 +116,7 @@ function SeriesRow({ item, deleting, disabled, onDelete }) {
                 label={`Edit ${item.name}`}
                 onPress={() => router.push(editPath(item))}
                 disabled={disabled}
+                color={tile?.text}
                 plain
               />
             ) : null}
@@ -118,29 +124,34 @@ function SeriesRow({ item, deleting, disabled, onDelete }) {
               icon="delete-outline"
               label={`Delete ${item.name}`}
               onPress={() => onDelete(item)}
-              color={t.danger}
+              color={tile?.text ?? t.danger}
               disabled={disabled}
               plain
             />
           </View>
         </View>
-        {item.editable && item.total ? <ProgressBar done={item.done} total={item.total} /> : null}
-      </GlassCard>
+        {item.editable && item.total ? <ProgressBar done={item.done} total={item.total} tile={tile} /> : null}
+      </Card>
     </Pressable>
   );
 }
 
-function ProgressBar({ done, total }) {
+function ProgressBar({ done, total, tile }) {
   const t = useTheme();
+  const width = `${Math.round((done / total) * 100)}%`;
+  if (tile) {
+    return (
+      <View style={[styles.track, { backgroundColor: tile.track, borderColor: "transparent" }]}>
+        <View style={[styles.fill, { width, backgroundColor: tile.fill }]} />
+      </View>
+    );
+  }
   return (
     <View style={[styles.track, { backgroundColor: t.field, borderColor: t.fieldBorder }]}>
       <View
         style={[
           styles.fill,
-          {
-            width: `${Math.round((done / total) * 100)}%`,
-            experimental_backgroundImage: `linear-gradient(90deg, ${t.buttonFrom}, ${t.buttonTo})`,
-          },
+          { width, experimental_backgroundImage: `linear-gradient(90deg, ${t.buttonFrom}, ${t.buttonTo})` },
         ]}
       />
     </View>

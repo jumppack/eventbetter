@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { DEFAULTS, FREQUENCIES, UNITS } from "../config/defaults";
+import { classicIdFor, nearestClassic } from "../lib/color";
 import { gridDate, isValidDateString, occurrences, parseDate, toDateString } from "../lib/schedule";
 import { buildOccurrences } from "../lib/series";
 import { validate } from "../lib/validate";
+import { ColorField } from "./ColorField";
 import {
   Bullet,
   ChoiceCards,
@@ -37,6 +39,7 @@ export function emptyForm() {
     maxCount: String(DEFAULTS.maxCount),
     direction: DEFAULTS.direction,
     starting: DEFAULTS.starting,
+    color: DEFAULTS.color,
     title: DEFAULTS.title,
     startTitle: "",
     endTitle: "",
@@ -48,10 +51,12 @@ export function emptyForm() {
 const modernize = (template) => (template ?? "").replaceAll("{unit}", "{units}");
 
 // Saved config (numbers) back to form values (strings) for the edit screen.
+// An event saved without a color (empty) starts on the default in the form.
 export function toFormValues(config) {
   return {
     ...emptyForm(),
     ...config,
+    color: config.color || DEFAULTS.color,
     interval: String(config.interval),
     maxCount: String(config.maxCount),
     end: config.end ?? "",
@@ -100,10 +105,18 @@ const PREVIEW_HEAD = 2;
 
 // Fields and help text follow the prototype's Index.html. `status` is
 // { text, tone } shown under the button.
-export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
+export function SeriesForm({ initial, submitLabel, onSubmit, busy, status, colorSupport = null }) {
   const [form, setForm] = useState(initial ?? emptyForm);
   const [showErrors, setShowErrors] = useState(false);
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
+
+  // Accounts without event labels only have the 11 classic colors, so a color
+  // outside them moves to the nearest one.
+  useEffect(() => {
+    if (colorSupport === false && form.color && !classicIdFor(form.color)) {
+      setForm((f) => ({ ...f, color: nearestClassic(f.color).hex }));
+    }
+  }, [colorSupport, form.color]);
 
   const { sub, errors, valid } = useMemo(() => validate(form), [form]);
   const preview = useMemo(() => {
@@ -136,6 +149,10 @@ export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
           autoCapitalize="sentences"
           returnKeyType="done"
         />
+      </Field>
+
+      <Field label="Color" error={fieldError("color")}>
+        <ColorField value={form.color} onChange={set("color")} supported={colorSupport} />
       </Field>
 
       <Field label="Start date" error={fieldError("start")}>
@@ -242,7 +259,7 @@ export function SeriesForm({ initial, submitLabel, onSubmit, busy, status }) {
         />
       </Field>
 
-      <Preview items={preview} />
+      <Preview items={preview} color={form.color} />
 
       <View style={styles.submit}>
         <PrimaryButton title={submitLabel} onPress={submit} busy={busy} />
@@ -275,14 +292,17 @@ function SectionHeading({ children }) {
   return <Text style={[styles.section, { color: t.muted }]}>{children}</Text>;
 }
 
-function Preview({ items }) {
+function Preview({ items, color }) {
   const t = useTheme();
   if (!items.length) return null;
   const hidden = items.length - PREVIEW_HEAD - 1;
   const rows = hidden > 0 ? [...items.slice(0, PREVIEW_HEAD), null, items.at(-1)] : items;
   return (
     <View style={[styles.preview, { backgroundColor: t.field, borderColor: t.fieldBorder }]}>
-      <Text style={[styles.previewTitle, { color: t.muted }]}>Preview</Text>
+      <View style={styles.previewHeader}>
+        <Text style={[styles.previewTitle, { color: t.muted }]}>Preview</Text>
+        {color ? <View style={[styles.previewDot, { backgroundColor: color, borderColor: t.fieldBorder }]} /> : null}
+      </View>
       {rows.map((o) =>
         o === null ? (
           <Text key="more" style={[styles.previewDate, { color: t.muted }]}>
@@ -342,6 +362,8 @@ function TemplateHelp() {
 const styles = StyleSheet.create({
   preview: { marginTop: 22, padding: 14, borderRadius: radius.field, borderWidth: 1, gap: 8 },
   previewTitle: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
+  previewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  previewDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 1 },
   section: { marginTop: 28, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 },
   note: { marginTop: 6 },
   previewRow: { gap: 2 },

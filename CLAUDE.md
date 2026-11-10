@@ -62,6 +62,18 @@ Unknown placeholders are left as literal text. Default template: `{name}: {ord} 
 - **Start date title / End date title** (both optional) are the titles shown on step 0 and step N. If a numbered occurrence already falls there, the title replaces its title; otherwise it adds one extra event there. In these titles `{count}` is 0 (start) or N (end). With no numbered occurrences, only the start title can appear. The end event may fall after the optional End date: it marks the end of the last period.
 - Every item stays on the grid and the set is contiguous, so one RRULE with `COUNT` = all items still describes the series.
 
+### Color (milestone 9)
+
+- Each recurring event has one color, chosen in the form, shown on its tile in the list and on its occurrences in Google Calendar. New events default to **Grape `#8e24aa`**: purple like the app, and present in both Google's classic 11 colors and its 24 default labels. Events created before milestone 9 have no stored color (`color: ""`): their tile is neutral, their Calendar color is left alone, and the edit screen starts them on Grape.
+- **Google's model** (verified live with `scripts/probe-event-labels.mjs`, results in `docs/event-labels.md`): a color is a **label** on the calendar (`labelProperties.eventLabels[]`: a UUID `id`, a `backgroundColor` hex, an optional name; at most 200 per calendar). A fresh calendar already holds Google's 24 default labels. An event points at one with `eventLabelId`, which needs `eventLabelVersion=1` on insert and patch (reads need no parameter). Any valid hex is accepted. `calendar.app.created` is enough for all of it, so no new scope.
+- **Setting a color:** look the hex up in the calendar's labels and reuse it; otherwise read the labels, append a new one with a fresh UUID and no name, and write the list back. The update replaces the whole array, so it is always read-modify-write, and label writes run one at a time.
+- The label goes on the series master only. Occurrences follow it, renamed ones too, so a color-only edit is one patch on the master.
+- **Support detection** (no version checks): when the form opens, read the calendar's labels. A non-empty list means the account supports labels. An empty or missing list is ambiguous (an account without the feature, or a calendar older than the defaults), so try adding the label needed and read it back; if the write is rejected or the label doesn't appear, the account is unsupported. After creating an event the response must carry the chosen `eventLabelId`; if not, treat the account as unsupported. The result is cached for the session and re-checked at the next launch.
+- **Unsupported accounts** use the 11 classic colors through `colorId` (1 Lavender `#7986cb`, 2 Sage `#33b679`, 3 Grape `#8e24aa`, 4 Flamingo `#e67c73`, 5 Banana `#f6bf26`, 6 Tangerine `#f4511e`, 7 Peacock `#039be5`, 8 Graphite `#616161`, 9 Blueberry `#3f51b5`, 10 Basil `#0b8043`, 11 Tomato `#d50000`). Id 9 was verified live; the rest are mapped by name and must be checked. With `eventLabelVersion=1`, `colorId` is ignored, so send one or the other, never both.
+- **Picker** (mock B): ten hue chips (Red `#d50000`, Orange `#ef6c00`, Yellow `#f6bf26`, Green `#33b679`, Teal `#009688`, Blue `#4285f4`, Purple `#8e24aa`, Pink `#d81b60`, Brown `#795548`, Gray `#616161`). Only the hues show at first. Tapping one selects Google's own color for it and opens a row of its 7 tones below a hairline separator (tapping the open hue again closes the row); the row is light to dark, spaced evenly in CIE L* in steps of 10 (the tone scale of Material 3's tonal palettes; WCAG has no rule for swatch spacing, only for contrast), at the hue and chroma of Google's default for that chip, with chroma reduced where a tone would leave sRGB. The window is L* 25 to 95 and is placed so that one step lands exactly on the Google default, as near the middle as the window allows. Unsupported accounts see one row of the 11 classic colors instead. No color name or caption is printed (swatches have spoken names for screen readers). No sliders and no free hex entry in v1.
+- **Accessibility** (WCAG 2.2): text on a tile is pure black or white, whichever contrasts more with the color. One of the two always reaches at least 4.58:1 (1.4.3 asks for 4.5:1), whereas a dark gray like `#1b1d24` falls to about 4.1:1 on mid-tones, so it isn't used. The progress fill against its track needs 3:1 (1.4.11). A selected swatch shows a check mark, not just a ring (1.4.1), every swatch has a spoken name, and targets clear 2.5.8's 24px minimum (hue chips are 48dp; the seven tones are 48dp tall and about 40dp wide). Tests sweep every palette color and a grid of the whole RGB cube.
+- Stored as `color` (a hex string) in `ebConfig` with no version bump: older app versions ignore the extra field and can still edit the event, and `decodeConfig` gives configs without it `color: ""`. It is not part of `ebKey`.
+
 ### Dates
 
 - Parse `YYYY-MM-DD` as a local date. Never use `new Date("YYYY-MM-DD")`, which parses as UTC and can shift the day.
@@ -82,6 +94,7 @@ Unknown placeholders are left as literal text. Default template: `{name}: {ord} 
 3. Insert one all-day recurring event (`start.date` / `end.date` = next day) into the EventBetter calendar with:
    - the first occurrence's title as the summary
    - the RRULE
+   - the color: `eventLabelId` (request parameter `eventLabelVersion=1`) or, on accounts without labels, the classic `colorId`. See Color
    - `reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 900 }] }`. For all-day events, minutes count back from midnight at the start of the day, so 900 = 9:00 AM the day before
    - `extendedProperties.private`: `ebKey` (dedupe key: name|start|frequency|interval), `ebName`, and `ebConfig` (compact JSON of the full form input, needed for the edit screen). Each value must stay under the Calendar API's per-value size limit, so check it and fail clearly if a config is too large
 4. Fetch all instances (paginate) and patch each occurrence after the first with its own summary and description. Throttle the patches (roughly 250 ms apart) and retry on 403/429 rate-limit responses with backoff.
@@ -91,15 +104,16 @@ Series lookup uses `events.list` with `privateExtendedProperty` and filters out 
 
 ### Editing and deleting
 
-- **Edit** = delete the series and recreate it from the edited config, after a confirmation dialog. Occurrence titles are all custom, so there's no safe in-place edit.
+- **Edit** = delete the series and recreate it from the edited config, after a confirmation dialog. Occurrence titles are all custom, so there's no safe in-place edit. The one exception is a change to the color alone, which updates the series master with a single request.
 - **Delete** = delete the series master event, which removes all occurrences.
 
 ## Screens
 
 1. **Sign in:** app name, a one-line explanation, and a "Continue with Google" button. After sign-in, explain in plain words why Calendar access is needed before the system permission prompt appears.
-2. **Recurring events list (home):** every EventBetter series, showing name, frequency ("Every 3 months"), progress ("5 of 12 occurrences") and the next occurrence date, with edit and delete icons on each card (tapping the card opens edit; delete always confirms with the occurrence count). Pull to refresh, an empty state that explains the app, and a floating add button. A banner ad is anchored at the bottom of this screen only.
+2. **Recurring events list (home):** every EventBetter series, showing name, frequency ("Every 3 months"), progress ("5 of 12 occurrences") and the next occurrence date, with edit and delete icons on each card (tapping the card opens edit; delete always confirms with the occurrence count). A card is filled with the event's color, with text switching between dark and white for contrast. Pull to refresh, an empty state that explains the app, and a floating add button. A banner ad is anchored at the bottom of this screen only.
 3. **Add / edit recurring event:** fields and help text based on the prototype's Index.html, now in `src/components/SeriesForm.js`:
    - Title
+   - Color (hue chips and a tone row, default Grape; see Color)
    - Start date (native date picker, defaults to today)
    - Frequency
    - Repeat every

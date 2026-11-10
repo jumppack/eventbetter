@@ -1,10 +1,19 @@
 import { DEFAULTS, DIRECTIONS, MAX_COUNT, STARTINGS, UNITS } from "../config/defaults";
+import { normalizeHex } from "./color";
 import { isValidDateString, parseDate } from "./schedule";
 
 const isBlank = (v) =>
   v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 const toInt = (v) => (typeof v === "number" ? v : Number(String(v).trim()));
+
+// A missing color means the default. An explicit empty string means "no color":
+// events created before colors existed, which Calendar still draws in its own.
+function pickColor(input) {
+  if (input.color === undefined || input.color === null) return DEFAULTS.color;
+  if (typeof input.color === "string" && input.color.trim() === "") return "";
+  return normalizeHex(input.color) ?? String(input.color);
+}
 
 // Accepts raw form values (strings) and returns the normalized event settings plus
 // per-field errors. Empty fields fall back to defaults instead of overriding them.
@@ -20,6 +29,7 @@ export function validate(input) {
     maxCount: toInt(pick("maxCount")),
     direction: pick("direction"),
     starting: pick("starting"),
+    color: pickColor(input),
     title: pick("title"),
     startTitle: isBlank(input.startTitle) ? "" : input.startTitle,
     endTitle: isBlank(input.endTitle) ? "" : input.endTitle,
@@ -38,6 +48,8 @@ export function validate(input) {
 
   if (!DIRECTIONS.includes(sub.direction)) errors.direction = `Unknown count direction: ${sub.direction}`;
   if (!STARTINGS.includes(sub.starting)) errors.starting = `Unknown starting option: ${sub.starting}`;
+
+  if (sub.color !== "" && !normalizeHex(sub.color)) errors.color = "Color must be a hex value like #8e24aa";
 
   if (!Number.isInteger(sub.interval) || sub.interval < 1) {
     errors.interval = "Repeat every must be a whole number of at least 1";

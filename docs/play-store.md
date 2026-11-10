@@ -37,6 +37,7 @@ and no server.
 > • Repeat every few days, weeks, months or years; stop after a number of occurrences or on an end date
 > • Month ends handled correctly: a series starting on the 31st lands on the last day of shorter months
 > • Optional titles for the start and end dates, like "Tuff Gym membership started" and "… ended"
+> • Pick a color for each recurring event, shown on its tile in the app and in Google Calendar
 > • Live preview of the first titles as you type
 > • Reminders: a Google Calendar reminder plus an optional phone notification at 9:00 AM the day before
 > • Edit or delete a recurring event anytime, or delete them all at once

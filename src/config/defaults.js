@@ -22,6 +22,8 @@ export const DEFAULTS = {
   maxCount: 12,
   direction: "up",
   starting: "later",
+  // Grape: purple like the app, in both Google's classic 11 colors and its 24 labels.
+  color: "#8e24aa",
   title: "{name}: {ord} {units} over",
   startTitle: "",
   endTitle: "",

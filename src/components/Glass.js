@@ -105,6 +105,17 @@ export function GlassCard({ children, style }) {
   );
 }
 
+// A solid card painted in an event's color. Text and icons on it take their
+// color from tileColors() so they stay readable on any tone.
+export function ColorCard({ color, children, style }) {
+  const t = useTheme();
+  return (
+    <View style={[styles.card, { backgroundColor: color, borderColor: t.border, boxShadow: t.shadow }, style]}>
+      {children}
+    </View>
+  );
+}
+
 export function PrimaryButton({ title, onPress, disabled, busy }) {
   const t = useTheme();
   const inactive = disabled || busy;

@@ -43,6 +43,27 @@ describe("calendarApi", () => {
     expect(JSON.parse(requests[0].body)).toEqual({ summary: "EventBetter" });
   });
 
+  it("patches a calendar's event labels", async () => {
+    const { api, requests } = setup([json(200, { id: "cal1" })]);
+    const labelProperties = { eventLabels: [{ id: "u1", backgroundColor: "#8e24aa" }] };
+    await api.patchCalendar("a@group", { labelProperties });
+
+    expect(requests[0].method).toBe("PATCH");
+    expect(requests[0].url).toBe("https://www.googleapis.com/calendar/v3/calendars/a%40group");
+    expect(JSON.parse(requests[0].body)).toEqual({ labelProperties });
+  });
+
+  it("sends eventLabelVersion on event writes when asked", async () => {
+    const { api, requests } = setup([json(200, { id: "e1" }), json(200, { id: "e1" }), json(200, { id: "e2" })]);
+    await api.insertEvent("c", { summary: "x", eventLabelId: "u1" }, { eventLabelVersion: 1 });
+    await api.patchEvent("c", "e1", { eventLabelId: "u2" }, { eventLabelVersion: 1 });
+    await api.insertEvent("c", { summary: "y", colorId: "3" });
+
+    expect(requests[0].url).toBe("https://www.googleapis.com/calendar/v3/calendars/c/events?eventLabelVersion=1");
+    expect(requests[1].url).toBe("https://www.googleapis.com/calendar/v3/calendars/c/events/e1?eventLabelVersion=1");
+    expect(requests[2].url).toBe("https://www.googleapis.com/calendar/v3/calendars/c/events");
+  });
+
   it("reuses the token across requests", async () => {
     const { api, tokens } = setup([json(200, {}), json(200, {})]);
     await api.getCalendar("a");

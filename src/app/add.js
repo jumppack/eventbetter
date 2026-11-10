@@ -6,6 +6,7 @@ import { GlassCard, Screen, TopBar } from "../components/Glass";
 import { emptyForm, progressText, SeriesForm } from "../components/SeriesForm";
 import { useSeries } from "../components/SeriesProvider";
 import { useBlockBack } from "../components/useBlockBack";
+import { useColorSupport } from "../components/useColorSupport";
 import { reminders } from "../services/reminders";
 import { useTheme } from "../components/theme";
 
@@ -14,6 +15,7 @@ export default function AddSeries() {
   const { service, refresh } = useSeries();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const colorSupport = useColorSupport(service);
   useBlockBack(busy);
 
   async function onSubmit(form) {
@@ -46,6 +48,7 @@ export default function AddSeries() {
               onSubmit={onSubmit}
               busy={busy}
               status={status}
+              colorSupport={colorSupport}
             />
           </GlassCard>
         </ScrollView>

@@ -7,6 +7,9 @@ import { GlassCard, Screen, SecondaryButton, StatusBox, TopBar } from "../../com
 import { progressText, SeriesForm, toFormValues } from "../../components/SeriesForm";
 import { useSeries } from "../../components/SeriesProvider";
 import { useBlockBack } from "../../components/useBlockBack";
+import { useColorSupport } from "../../components/useColorSupport";
+import { sameExceptColor } from "../../lib/series";
+import { validate } from "../../lib/validate";
 import { useTheme } from "../../components/theme";
 
 export default function EditSeries() {
@@ -17,6 +20,7 @@ export default function EditSeries() {
   const [loadError, setLoadError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);
+  const colorSupport = useColorSupport(service);
   useBlockBack(busy);
 
   // Opened without the list loaded (e.g. after a reload): fetch it directly.
@@ -29,18 +33,23 @@ export default function EditSeries() {
   }, [id, service, series]);
 
   async function onSave(form) {
-    const count = series.occurrenceCount;
-    const ok = await confirm(
-      "Replace this recurring event?",
-      `EventBetter will create the updated occurrences in your calendar, then delete the current ${count}. Every occurrence has its own title, so they can't be changed in place.`,
-      "Replace",
-    );
-    if (!ok) return;
+    // Changing only the color updates the event in place, so there's nothing to warn about.
+    const colorOnly = sameExceptColor(series.config, validate(form).sub);
+    if (!colorOnly) {
+      const count = series.occurrenceCount;
+      const ok = await confirm(
+        "Replace this recurring event?",
+        `EventBetter will create the updated occurrences in your calendar, then delete the current ${count}. Every occurrence has its own title, so they can't be changed in place.`,
+        "Replace",
+      );
+      if (!ok) return;
+    }
 
     setBusy(true);
-    setStatus(null);
+    setStatus(colorOnly ? { text: "Updating the color…", tone: "normal" } : null);
     try {
       await service.update(series.id, form, {
+        previous: series.config,
         onProgress: (p) => setStatus({ text: progressText(p), tone: "normal" }),
       });
       await refresh();
@@ -84,6 +93,7 @@ export default function EditSeries() {
                   onSubmit={onSave}
                   busy={busy}
                   status={status}
+                  colorSupport={colorSupport}
                 />
               ) : (
                 <>
